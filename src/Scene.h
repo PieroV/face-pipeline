@@ -1,3 +1,9 @@
+/**
+ * To the extent possible under law, the author has dedicated all copyright
+ * and related and neighboring rights to this software to the public domain
+ * worldwide. This software is distributed without any warranty.
+ */
+
 #pragma once
 
 #include <filesystem>
@@ -12,25 +18,26 @@
 
 #include "nlohmann/json.hpp"
 
+#include "open3d/camera/PinholeCameraIntrinsic.h"
+#include "open3d/geometry/PointCloud.h"
+#include "open3d/geometry/RGBDImage.h"
+
 #include "shaders.h"
+
+class Scene;
 
 class PointCloud {
 public:
-  PointCloud(const std::string &fname);
-  PointCloud(const std::filesystem::path &baseDirectory,
-             const nlohmann::json &j);
+  PointCloud(const Scene &scene, const std::string &name);
+  PointCloud(const Scene &scene, const nlohmann::json &j);
 
-  void load(std::vector<char> &data) const;
+  GLsizei getPoints(std::vector<float> &data,
+                    const double *voxelSize = nullptr) const;
   glm::mat4 getMatrix() const;
   nlohmann::json toJson() const;
+  void loadData(const Scene &scene);
 
-private:
-  void loadNumPoints();
-  void setRandomColor();
-
-public:
   std::string name;
-  std::string filename;
   glm::vec3 translationPre;
   glm::vec3 euler;
   glm::vec3 translationPost;
@@ -38,7 +45,11 @@ public:
   glm::mat4 matrix;
   bool rawMatrix;
   bool hidden;
-  GLsizei numPoints = 0;
+  double trunc = 1.5;
+
+private:
+  std::shared_ptr<open3d::geometry::RGBDImage> mRGBD;
+  std::shared_ptr<open3d::geometry::PointCloud> mPointCloud;
 };
 
 class Scene {
@@ -57,6 +68,8 @@ public:
 
   std::vector<PointCloud> clouds;
   bool paintUniform = false;
+  bool voxelDown = false;
+  double voxelSize = 0.01;
 
 private:
   Scene() = default;
@@ -66,14 +79,21 @@ private:
 
   std::filesystem::path mDataDirectory;
 
+  open3d::camera::PinholeCameraIntrinsic mIntrinsic;
+  double mDepthScale;
+
   // We will create the shader each time we create a Scene instance.
   // This is not optimal, but it is okay to do it for now, maybe we can do
   // something better in the future.
   ShaderProgram mShader;
+
+  std::vector<GLsizei> mNumPoints;
 
   GLuint mVAO = 0;
   GLuint mVBO = 0;
   GLint mPvmLoc = -1;
   GLint mPaintUniformLoc = -1;
   GLint mUniformColorLoc = -1;
+
+  friend class PointCloud;
 };

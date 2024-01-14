@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.12)
 project(FacePipeline)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -11,15 +11,23 @@ LIST(APPEND SOURCES ${glad_src})
 
 LIST(APPEND DEPS_INCLUDES thirdparty/json/single_include)
 
-set(IMGUI_DIR thirdparty/imgui)
-LIST(APPEND DEPS_INCLUDES ${IMGUI_DIR} ${IMGUI_DIR}/backends ${IMGUI_DIR}/misc/cpp)
-LIST(APPEND SOURCES ${IMGUI_DIR}/imgui.cpp ${IMGUI_DIR}/imgui_demo.cpp ${IMGUI_DIR}/imgui_draw.cpp ${IMGUI_DIR}/imgui_tables.cpp ${IMGUI_DIR}/imgui_widgets.cpp)
-LIST(APPEND SOURCES ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp)
-LIST(APPEND SOURCES ${IMGUI_DIR}/misc/cpp/imgui_stdlib.cpp)
-
 find_package(glfw3 3.3 REQUIRED)
+
+find_package(glm REQUIRED)
+
+find_package(Open3D REQUIRED)
+LIST(APPEND DEPS_INCLUDES ${Open3D_INCLUDE_DIRS})
+
+set(IMGUI_DIR thirdparty/imgui)
+LIST(APPEND IMGUI_SOURCE ${IMGUI_DIR}/imgui.cpp ${IMGUI_DIR}/imgui_demo.cpp ${IMGUI_DIR}/imgui_draw.cpp ${IMGUI_DIR}/imgui_tables.cpp ${IMGUI_DIR}/imgui_widgets.cpp)
+LIST(APPEND IMGUI_SOURCE ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp)
+LIST(APPEND IMGUI_SOURCE ${IMGUI_DIR}/misc/cpp/imgui_stdlib.cpp)
+add_library(imgui OBJECT ${IMGUI_SOURCE})
+target_include_directories(imgui PUBLIC ${IMGUI_DIR} ${IMGUI_DIR}/backends ${IMGUI_DIR}/misc/cpp)
+target_link_libraries(imgui glfw3)
+LIST(APPEND DEPS_INCLUDES ${IMGUI_DIR} ${IMGUI_DIR}/backends ${IMGUI_DIR}/misc/cpp)
 
 add_executable(align ${SOURCES})
 target_include_directories(align SYSTEM PUBLIC ${DEPS_INCLUDES})
-target_link_libraries(align glfw)
+target_link_libraries(align glfw glm::glm $<TARGET_OBJECTS:imgui> Open3D::Open3D)
 target_compile_options(align PRIVATE -Wall -Wextra -Wpedantic)

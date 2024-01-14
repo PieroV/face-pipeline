@@ -48,3 +48,23 @@ It's done with the `icp.py` script.
 ### 5. TSDF
 
 Finally, the point clouds are merged with Truncated Signed Distance Function.
+
+## Dependencies
+
+This project depends on the following libraries, that you should provide on your
+own:
+
+- [Open3D](https://www.open3d.org/)
+- [GLFW3](https://www.glfw.org/)
+- [GLM](https://glm.g-truc.net/)
+
+In addition to that, it depends on the following libraries, that are included
+either in the tree, or as git submodules:
+
+- [Glad](https://glad.dav1d.de/)
+- [Dear ImGui](https://github.com/ocornut/imgui)
+- [JSON for Modern C++](https://github.com/nlohmann/json)
+
+While this project’s code is dedicated to the public domain (you can refer to
+the [Zero-Clause BSD license](https://opensource.org/license/0bsd/), if needed),
+the depdencies have their own licensing terms.

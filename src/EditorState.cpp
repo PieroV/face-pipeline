@@ -1,3 +1,9 @@
+/**
+ * To the extent possible under law, the author has dedicated all copyright
+ * and related and neighboring rights to this software to the public domain
+ * worldwide. This software is distributed without any warranty.
+ */
+
 #include "EditorState.h"
 
 #include "glm/gtc/type_ptr.hpp"
@@ -19,14 +25,14 @@ void EditorState::createMain() {
   ImGui::Begin("Main");
 
   if (ImGui::BeginTable("clouds-table", 4)) {
-    ImGui::TableSetupColumn("Filename", ImGuiTableColumnFlags_WidthStretch);
+    ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
     ImGui::TableSetupColumn("Edit", ImGuiTableColumnFlags_WidthFixed);
     ImGui::TableSetupColumn("Delete", ImGuiTableColumnFlags_WidthFixed);
     ImGui::TableSetupColumn("Hide", ImGuiTableColumnFlags_WidthFixed);
     for (size_t i = 0; i < scene.clouds.size(); i++) {
       ImGui::TableNextRow();
       ImGui::TableSetColumnIndex(0);
-      ImGui::Text("%zu %s", i, scene.clouds[i].filename.c_str());
+      ImGui::Text("%zu %s", i, scene.clouds[i].name.c_str());
       ImGui::TableSetColumnIndex(1);
       char id[50];
       const auto &c = scene.clouds[i].color;
@@ -67,7 +73,7 @@ void EditorState::createMain() {
                              ImGuiWindowFlags_AlwaysAutoResize)) {
     ImGui::InputText("Filename", &mPcdFilename);
     if (ImGui::Button("OK", ImVec2(120, 0))) {
-      scene.clouds.emplace_back(mPcdFilename);
+      scene.clouds.emplace_back(scene, mPcdFilename);
       scene.refreshBuffer();
       ImGui::CloseCurrentPopup();
     }
@@ -83,6 +89,18 @@ void EditorState::createMain() {
   }
 
   ImGui::Checkbox("Paint uniform", &scene.paintUniform);
+
+  bool voxelChanged =
+      ImGui::Checkbox("Voxel down for visualization", &scene.voxelDown);
+  voxelChanged =
+      ImGui::InputDouble("Voxel size", &scene.voxelSize) || voxelChanged;
+  if (voxelChanged && scene.voxelDown && scene.voxelSize <= 0) {
+    scene.voxelDown = false;
+  }
+  if (voxelChanged) {
+    mScene.refreshBuffer();
+  }
+
   ImGui::End();
 }
 
@@ -110,6 +128,11 @@ void EditorState::createEdit() {
     }
     ImGui::ColorEdit3("Color", glm::value_ptr(scene.clouds[mEditIndex].color));
     ImGui::Checkbox("Raw matrix", &scene.clouds[mEditIndex].rawMatrix);
+    if (ImGui::InputDouble("Depth max value",
+                           &scene.clouds[mEditIndex].trunc)) {
+      scene.clouds[mEditIndex].loadData(scene);
+      scene.refreshBuffer();
+    }
     ImGui::End();
   }
   ImGui::PopStyleVar();
