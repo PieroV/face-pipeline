@@ -34,7 +34,7 @@ struct ShaderProgram {
   void link(const std::initializer_list<GLuint> &shaders);
 
   void use() const;
-  GLint getUniformLocation(const char *name);
+  GLint getUniformLocation(const char *name) const;
 
   GLuint program;
 };

@@ -54,10 +54,11 @@ void from_json(const json &j, mat4 &m) {
 }
 } // namespace glm
 
-PointCloud::PointCloud(const Scene &scene, const std::string &name)
+PointCloud::PointCloud(const Scene &scene, const std::string &name,
+                       double trunc)
     : name(name), translationPre(0.0f, 0.0f, 0.0f), euler(0.0f, 0.0f, 0.0f),
       translationPost(0.0f, 0.0f, 0.0f), matrix(1.0f), rawMatrix(false),
-      hidden(false) {
+      hidden(false), trunc(trunc) {
   std::uniform_real_distribution<float> d(0.0, 1.0);
   color.x = d(rng);
   color.y = d(rng);
@@ -111,25 +112,16 @@ GLsizei PointCloud::getPoints(std::vector<float> &data,
 }
 
 void PointCloud::loadData(const Scene &scene) {
-  const fs::path &dir = scene.mDataDirectory;
-  std::string rgbPath = (dir / "rgb" / (name + ".jpg")).string();
-  std::string depthPath = (dir / "depth" / (name + ".png")).string();
-  open3d::geometry::Image rgb, depth;
-  if (!open3d::io::ReadImageFromJPG(rgbPath, rgb)) {
-    throw std::runtime_error("Could not read the RGB frame" + rgbPath);
-  }
-  if (!open3d::io::ReadImage(depthPath, depth)) {
-    throw std::runtime_error("Could not read the depth frame" + depthPath);
-  }
+  auto [rgb, depth] = scene.openFrame(name);
   mRGBD = open3d::geometry::RGBDImage::CreateFromColorAndDepth(
       rgb, depth, 1.0 / scene.mDepthScale, trunc, false);
   if (!mRGBD) {
-    throw std::runtime_error("Failed to load the RGBD image");
+    throw std::runtime_error("Failed to create the RGBD image");
   }
   mPointCloud = open3d::geometry::PointCloud::CreateFromRGBDImage(
       *mRGBD, scene.mIntrinsic);
   if (!mPointCloud) {
-    throw std::runtime_error("Failed ot create the point cloud");
+    throw std::runtime_error("Failed to create the point cloud");
   }
   mPointCloud->EstimateNormals(open3d::geometry::KDTreeSearchParamKNN(100));
 }
@@ -142,7 +134,8 @@ json PointCloud::toJson() const {
           {"trunc", trunc}};
 }
 
-Scene::Scene(const std::filesystem::path &dataDirectory)
+Scene::Scene(const std::filesystem::path &dataDirectory,
+             std::vector<std::string> &warnings)
     : mDataDirectory(dataDirectory), mShader(createShader()) {
   if (!fs::exists(dataDirectory) || !fs::is_directory(dataDirectory)) {
     throw std::invalid_argument(dataDirectory.string() +
@@ -178,7 +171,11 @@ Scene::Scene(const std::filesystem::path &dataDirectory)
     json j;
     data >> j;
     for (const auto &p : j) {
-      clouds.emplace_back(*this, p);
+      try {
+        clouds.emplace_back(*this, p);
+      } catch (std::exception &e) {
+        warnings.push_back(e.what());
+      }
     }
   }
 
@@ -188,10 +185,10 @@ Scene::Scene(const std::filesystem::path &dataDirectory)
   }
 
   {
-    glGenVertexArrays(1, &mVAO);
-    glGenBuffers(1, &mVBO);
-    glBindVertexArray(mVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, mVBO);
+    glGenVertexArrays(1, &mRenderData.vao);
+    glGenBuffers(1, &mRenderData.vbo);
+    glBindVertexArray(mRenderData.vao);
+    glBindBuffer(GL_ARRAY_BUFFER, mRenderData.vbo);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), nullptr);
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float),
@@ -200,46 +197,49 @@ Scene::Scene(const std::filesystem::path &dataDirectory)
     glBindVertexArray(0);
     refreshBuffer();
   }
-
-  mPvmLoc = mShader.getUniformLocation("pvm");
-  mPaintUniformLoc = mShader.getUniformLocation("paintUniform");
-  mUniformColorLoc = mShader.getUniformLocation("uniformColor");
 }
 
-Scene::Scene(Scene &&other) noexcept : Scene() { *this = std::move(other); }
-
-Scene &Scene::operator=(Scene &&other) noexcept {
-  std::swap(clouds, other.clouds);
-  std::swap(mVAO, other.mVAO);
-  std::swap(mVBO, other.mVBO);
-  std::swap(mShader, other.mShader);
-  std::swap(mPvmLoc, other.mPvmLoc);
-  std::swap(mPaintUniformLoc, other.mPaintUniformLoc);
-  std::swap(mUniformColorLoc, other.mUniformColorLoc);
-  return *this;
+open3d::geometry::Image Scene::openImage(const std::string &path) const {
+  using namespace open3d;
+  geometry::Image img;
+  if (!io::ReadImage(path, img)) {
+    throw std::runtime_error("Cannot open " + path + ".");
+  }
+  if (img.width_ != mIntrinsic.width_ || img.height_ != mIntrinsic.height_) {
+    char error[100];
+    snprintf(error, sizeof(error), " has a wrong size (%dx%d, expected %dx%d).",
+             img.width_, img.height_, mIntrinsic.width_, mIntrinsic.height_);
+    throw std::runtime_error(path + error);
+  }
+  return img;
 }
 
-Scene::~Scene() {
-  glDeleteVertexArrays(1, &mVAO);
-  mVAO = 0;
-  glDeleteBuffers(1, &mVBO);
-  mVBO = 0;
-  mPvmLoc = -1;
-  mPaintUniformLoc = -1;
-  mUniformColorLoc = -1;
+std::pair<open3d::geometry::Image, open3d::geometry::Image>
+Scene::openFrame(const std::filesystem::path &basename) const {
+  std::string rgbPath =
+      (mDataDirectory / "rgb" / fs::path(basename).concat(".jpg")).string();
+  std::string depthPath =
+      (mDataDirectory / "depth" / fs::path(basename).concat(".png")).string();
+  auto pair = std::make_pair(openImage(rgbPath), openImage(depthPath));
+  // We do not force the number of channels for now.
+  if (pair.first.bytes_per_channel_ != 1) {
+    throw std::runtime_error("Unsupported format of the RGB image.");
+  }
+  if (pair.second.num_of_channels_ != 1) {
+    throw std::runtime_error("The depth image has more than one channel.");
+  }
+  return pair;
 }
-
-std::vector<std::string> Scene::loadFrames() { return {}; }
 
 std::pair<std::unique_ptr<Scene>, std::vector<std::string>>
-Scene::load(const std::filesystem::path &dataDirectory) {
+Scene::load(const fs::path &dataDirectory) {
+  std::vector<std::string> warnings;
   // no make_unique, as the constructor is private.
-  std::unique_ptr<Scene> self(new Scene(dataDirectory));
-  auto warnings = self->loadFrames();
+  std::unique_ptr<Scene> self(new Scene(dataDirectory, warnings));
   return {std::move(self), warnings};
 }
 
-std::filesystem::path Scene::getDataFile() const {
+fs::path Scene::getDataFile() const {
   return mDataDirectory / "face-pipeline.json";
 }
 
@@ -261,31 +261,56 @@ void Scene::refreshBuffer() {
     mNumPoints.push_back(
         cloud.getPoints(buffer, voxelDown ? &voxelSize : nullptr));
   }
-  glBindVertexArray(mVAO);
-  glBufferData(GL_ARRAY_BUFFER, buffer.size(), buffer.data(), GL_STATIC_DRAW);
+  glBindVertexArray(mRenderData.vao);
+  glBufferData(GL_ARRAY_BUFFER, buffer.size() * sizeof(float), buffer.data(),
+               GL_STATIC_DRAW);
   glBindVertexArray(0);
 }
 
 void Scene::render(const glm::mat4 &pv) const {
   assert(mNumPoints.size() == clouds.size());
   mShader.use();
-  glBindVertexArray(mVAO);
 
-  glUniformMatrix4fv(mPvmLoc, 1, GL_FALSE, glm::value_ptr(pv));
-  glUniform1i(mPaintUniformLoc, 0);
+  GLint pvmLoc = mShader.getUniformLocation("pvm");
+  GLint paintUniformLoc = mShader.getUniformLocation("paintUniform");
+  GLint uniformColorLoc = mShader.getUniformLocation("uniformColor");
+  assert(pvmLoc >= 0 && paintUniformLoc >= 0 && uniformColorLoc >= 0);
+
+  glBindVertexArray(mRenderData.vao);
+
+  glUniformMatrix4fv(pvmLoc, 1, GL_FALSE, glm::value_ptr(pv));
+  glUniform1i(paintUniformLoc, 0);
   glDrawArrays(GL_LINES, 0, 6);
-  glUniform1i(mPaintUniformLoc, paintUniform);
+  glUniform1i(paintUniformLoc, paintUniform);
 
   GLsizei offset = 6;
   for (size_t i = 0; i < clouds.size(); i++) {
     const PointCloud &pcd = clouds[i];
     if (!pcd.hidden) {
       glm::mat4 pvm = pv * pcd.getMatrix();
-      glUniformMatrix4fv(mPvmLoc, 1, GL_FALSE, glm::value_ptr(pvm));
-      glUniform3fv(mUniformColorLoc, 1, glm::value_ptr(pcd.color));
+      glUniformMatrix4fv(pvmLoc, 1, GL_FALSE, glm::value_ptr(pvm));
+      glUniform3fv(uniformColorLoc, 1, glm::value_ptr(pcd.color));
       glDrawArrays(GL_POINTS, offset, mNumPoints[i]);
     }
     offset += mNumPoints[i];
   }
   glBindVertexArray(0);
+}
+
+Scene::RenderData::RenderData(Scene::RenderData &&other) noexcept {
+  *this = std::move(other);
+}
+
+Scene::RenderData &
+Scene::RenderData::operator=(Scene::RenderData &&other) noexcept {
+  std::swap(vao, other.vao);
+  std::swap(vbo, other.vbo);
+  return *this;
+}
+
+Scene::RenderData::~RenderData() {
+  glDeleteVertexArrays(1, &vao);
+  vao = 0;
+  glDeleteBuffers(1, &vbo);
+  vbo = 0;
 }

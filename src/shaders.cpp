@@ -109,7 +109,7 @@ void ShaderProgram::link(const std::initializer_list<GLuint> &shaders) {
 
 void ShaderProgram::use() const { glUseProgram(program); }
 
-GLint ShaderProgram::getUniformLocation(const char *name) {
+GLint ShaderProgram::getUniformLocation(const char *name) const {
   return glGetUniformLocation(program, name);
 }
 

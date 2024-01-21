@@ -11,6 +11,9 @@ LIST(APPEND SOURCES ${glad_src})
 
 LIST(APPEND DEPS_INCLUDES thirdparty/json/single_include)
 
+LIST(APPEND DEPS_INCLUDES thirdparty/natsort)
+LIST(APPEND SOURCES thirdparty/natsort/strnatcmp.c)
+
 find_package(glfw3 3.3 REQUIRED)
 
 find_package(glm REQUIRED)

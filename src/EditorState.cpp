@@ -11,6 +11,8 @@
 #include "imgui.h"
 #include "imgui_stdlib.h"
 
+#include "AddFrameState.h"
+
 EditorState::EditorState(Application &app)
     : mApp(app), mScene(app.getScene()) {}
 
@@ -61,28 +63,12 @@ void EditorState::createMain() {
   }
 
   if (ImGui::Button("Add")) {
-    mPcdFilename.clear();
-    ImGui::OpenPopup("Add point cloud");
+    mApp.setState(std::make_unique<AddFrameState>(mApp));
   }
 
   // Always center this window when appearing
   ImVec2 center = ImGui::GetMainViewport()->GetCenter();
   ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-
-  if (ImGui::BeginPopupModal("Add point cloud", nullptr,
-                             ImGuiWindowFlags_AlwaysAutoResize)) {
-    ImGui::InputText("Filename", &mPcdFilename);
-    if (ImGui::Button("OK", ImVec2(120, 0))) {
-      scene.clouds.emplace_back(scene, mPcdFilename);
-      scene.refreshBuffer();
-      ImGui::CloseCurrentPopup();
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Cancel", ImVec2(120, 0))) {
-      ImGui::CloseCurrentPopup();
-    }
-    ImGui::EndPopup();
-  }
 
   if (ImGui::Button("Save")) {
     scene.save();

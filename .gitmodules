@@ -4,3 +4,6 @@
 [submodule "imgui"]
 	path = thirdparty/imgui
 	url = https://github.com/ocornut/imgui.git
+[submodule "thirdparty/natsort"]
+	path = thirdparty/natsort
+	url = https://github.com/sourcefrog/natsort.git

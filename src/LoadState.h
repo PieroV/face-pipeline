@@ -4,6 +4,8 @@
  * worldwide. This software is distributed without any warranty.
  */
 
+#pragma once
+
 #include <memory>
 #include <string>
 #include <vector>

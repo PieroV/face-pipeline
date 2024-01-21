@@ -21,6 +21,14 @@
           "ignoreFailures": true
         }
       ]
-    }
+    },
+    {
+      "name": "Debug on LLDB",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/align",
+      "args": [],
+      "cwd": "${workspaceFolder}/build"
+    },
   ]
 }

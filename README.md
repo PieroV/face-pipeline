@@ -55,6 +55,7 @@ This project depends on the following libraries, that you should provide on your
 own:
 
 - [Open3D](https://www.open3d.org/)
+- [Eigen](https://eigen.tuxfamily.org/) (already required by Open3D)
 - [GLFW3](https://www.glfw.org/)
 - [GLM](https://glm.g-truc.net/)
 
@@ -64,6 +65,7 @@ either in the tree, or as git submodules:
 - [Glad](https://glad.dav1d.de/)
 - [Dear ImGui](https://github.com/ocornut/imgui)
 - [JSON for Modern C++](https://github.com/nlohmann/json)
+- [natsort](https://github.com/sourcefrog/natsort)
 
 While this project’s code is dedicated to the public domain (you can refer to
 the [Zero-Clause BSD license](https://opensource.org/license/0bsd/), if needed),
