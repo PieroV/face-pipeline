@@ -25,6 +25,12 @@ public:
 
 class Application {
 public:
+  enum class MouseMovement {
+    None,
+    Rotate,
+    Pan,
+  };
+
   Application();
   ~Application();
   int run(const char *dataDirectory);
@@ -39,10 +45,10 @@ private:
   void terminate();
 
   void keyCallback(int key, int scancode, int action, int mods);
+  void mouseClickCallback(int button, int action, int mods);
   void mousePosCallback(double x, double y);
+  void mouseScrollCallback(double xoffset, double yoffset);
   static void glfwErrorCallback(int error, const char *description);
-
-  void updateCamera(float dt);
 
   GLFWwindow *mWindow = nullptr;
   bool mHasImgui = false;
@@ -51,13 +57,8 @@ private:
   std::unique_ptr<AppState> mPendingState;
   std::unique_ptr<Scene> mScene;
 
-  glm::mat4 mView;
-  glm::vec3 mCamPos;
-  float mCamVert = 0.0f;
-  float mCamHor = 0.0f;
-  bool mMouseCaptured = false;
-  double mMouseDX = 0;
-  double mMouseDY = 0;
+  glm::mat4 mCamFrame;
+  MouseMovement mMouseCaptured = MouseMovement::None;
 
   bool mImguiDemo = false;
 };

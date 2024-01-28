@@ -12,6 +12,7 @@
 
 #include "glm/gtc/constants.hpp"
 #include "glm/gtc/matrix_transform.hpp"
+#include "glm/gtx/euler_angles.hpp"
 
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
@@ -22,7 +23,7 @@
 
 static Application *appFromWindow(GLFWwindow *window);
 
-Application::Application() : mView(1.0f), mCamPos(0.0f, 0.0f, 0.0f) {
+Application::Application() : mCamFrame(1.0f) {
   glfwSetErrorCallback(glfwErrorCallback);
 
   std::exception_ptr eptr;
@@ -66,11 +67,23 @@ void Application::initGlfw() {
       app->keyCallback(key, scancode, action, mods);
     }
   });
+  glfwSetMouseButtonCallback(
+      mWindow, [](GLFWwindow *window, int button, int action, int mods) {
+        if (Application *app = appFromWindow(window)) {
+          app->mouseClickCallback(button, action, mods);
+        }
+      });
   glfwSetCursorPosCallback(mWindow, [](GLFWwindow *window, double x, double y) {
     if (Application *app = appFromWindow(window)) {
       app->mousePosCallback(x, y);
     }
   });
+  glfwSetScrollCallback(mWindow,
+                        [](GLFWwindow *window, double xoffset, double yoffset) {
+                          if (Application *app = appFromWindow(window)) {
+                            app->mouseScrollCallback(xoffset, yoffset);
+                          }
+                        });
 }
 
 void Application::glfwErrorCallback(int error, const char *description) {
@@ -115,7 +128,6 @@ int Application::run(const char *dataDirectory) {
 
   ImGuiIO &io = ImGui::GetIO();
 
-  double lastTime = glfwGetTime();
   while (!glfwWindowShouldClose(mWindow)) {
     if (mPendingState) {
       mCurrentState.reset();
@@ -125,16 +137,11 @@ int Application::run(const char *dataDirectory) {
     assert(mCurrentState);
 
     glfwPollEvents();
-    if (mMouseCaptured) {
+    if (mMouseCaptured != MouseMovement::None) {
       io.ConfigFlags |= ImGuiConfigFlags_NoMouse;
     } else {
       io.ConfigFlags &= ~ImGuiConfigFlags_NoMouse;
     }
-    double now = glfwGetTime();
-    float dt = static_cast<float>(now - lastTime);
-    lastTime = now;
-
-    updateCamera(dt);
 
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
@@ -158,7 +165,10 @@ int Application::run(const char *dataDirectory) {
 
     glm::mat4 proj = glm::perspective(glm::radians(45.0f), (float)w / (float)h,
                                       0.1f, 100.0f);
-    mCurrentState->render(proj * mView);
+    glm::mat4 view = mCamFrame * glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f),
+                                             glm::vec3(0.0f, 2.0f, 0.0f),
+                                             glm::vec3(0.0f, 0.0f, 1.0f));
+    mCurrentState->render(proj * view);
 
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     glfwSwapBuffers(mWindow);
@@ -167,66 +177,85 @@ int Application::run(const char *dataDirectory) {
   return 0;
 }
 
-void Application::updateCamera(float dt) {
-  // TODO: Switch to an orbit camera
-  constexpr float sensitivity = 0.005f;
-  constexpr float speed = 1.0f;
-
-  mCamHor = fmod(mCamHor - mMouseDX * sensitivity, 2 * glm::pi<double>());
-  mCamVert = glm::clamp<float>(mCamVert - mMouseDY * sensitivity,
-                               -80.0f / 180.0f * glm::pi<float>(),
-                               80.0f / 180.0f * glm::pi<float>());
-  mMouseDX = 0;
-  mMouseDY = 0;
-  glm::mat4 T =
-      glm::rotate(glm::mat4(1.0f), mCamHor, glm::vec3(0.0f, 1.0f, 0.0f));
-  glm::vec3 lookDir(T * glm::rotate(glm::mat4(1.0f), mCamVert,
-                                    glm::vec3(0.0f, 0.0f, 1.0f))[0]);
-
-  if (!ImGui::GetIO().WantCaptureKeyboard) {
-    const int w = glfwGetKey(mWindow, GLFW_KEY_W) == GLFW_PRESS;
-    const int a = glfwGetKey(mWindow, GLFW_KEY_A) == GLFW_PRESS;
-    const int s = glfwGetKey(mWindow, GLFW_KEY_S) == GLFW_PRESS;
-    const int d = glfwGetKey(mWindow, GLFW_KEY_D) == GLFW_PRESS;
-    const int q = glfwGetKey(mWindow, GLFW_KEY_Q) == GLFW_PRESS;
-    const int e = glfwGetKey(mWindow, GLFW_KEY_E) == GLFW_PRESS;
-    const glm::vec4 localMove =
-        glm::vec4((w - s), (e - q), (d - a), 0.0) * speed * dt;
-    mCamPos += glm::vec3(T * localMove);
-  }
-
-  mView = glm::lookAt(mCamPos, mCamPos + lookDir, glm::vec3(0.0f, 1.0f, 0.0f));
-}
-
 void Application::keyCallback(int key, int scancode, int action, int mods) {
   (void)scancode;
   (void)mods;
-  if (key == GLFW_KEY_F1 && action == GLFW_PRESS) {
-    mMouseCaptured = !mMouseCaptured;
-    if (mMouseCaptured) {
-      glfwSetInputMode(mWindow, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
-      glfwSetInputMode(mWindow, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-      mousePosCallback(0, 0);
-      mMouseDX = 0;
-      mMouseDY = 0;
-    } else {
-      glfwSetInputMode(mWindow, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-    }
-  } else if (key == GLFW_KEY_F10 && action == GLFW_PRESS) {
+  if (key == GLFW_KEY_F10 && action == GLFW_PRESS) {
     mImguiDemo = !mImguiDemo;
   }
 }
 
-void Application::mousePosCallback(double x, double y) {
-  if (mMouseCaptured) {
-    int w_2 = 0, h_2 = 0;
-    glfwGetWindowSize(mWindow, &w_2, &h_2);
-    w_2 /= 2;
-    h_2 /= 2;
-    mMouseDX = x - w_2;
-    mMouseDY = y - h_2;
-    glfwSetCursorPos(mWindow, w_2, h_2);
+void Application::mouseClickCallback(int button, int action, int mods) {
+  (void)mods;
+  if (ImGui::GetIO().WantCaptureMouse) {
+    return;
   }
+  MouseMovement mov;
+  switch (button) {
+  case GLFW_MOUSE_BUTTON_1:
+    mov = MouseMovement::Rotate;
+    break;
+  case GLFW_MOUSE_BUTTON_2:
+    mov = MouseMovement::Pan;
+    break;
+  default:
+    return;
+  }
+  if (action == GLFW_RELEASE && mov == mMouseCaptured) {
+    mMouseCaptured = MouseMovement::None;
+    glfwSetInputMode(mWindow, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+  } else if (mMouseCaptured == MouseMovement::None && action == GLFW_PRESS) {
+    mMouseCaptured = mov;
+    glfwSetInputMode(mWindow, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+    glfwSetInputMode(mWindow, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    int w = 0, h = 0;
+    glfwGetWindowSize(mWindow, &w, &h);
+    glfwSetCursorPos(mWindow, w / 2, h / 2);
+  }
+}
+
+void Application::mousePosCallback(double x, double y) {
+  if (mMouseCaptured == MouseMovement::None) {
+    return;
+  }
+
+  int cx = 0, cy = 0;
+  glfwGetWindowSize(mWindow, &cx, &cy);
+  cx /= 2;
+  cy /= 2;
+  glfwSetCursorPos(mWindow, cx, cy);
+  float dx = static_cast<float>(x - cx);
+  float dy = static_cast<float>(y - cy);
+
+  switch (mMouseCaptured) {
+  case MouseMovement::Rotate: {
+    const float sensitivity = 0.001f;
+    glm::mat4 newFrame = glm::eulerAngleXY(dy * sensitivity, dx * sensitivity) *
+                         glm::mat4(glm::mat3(mCamFrame));
+    newFrame[3] = mCamFrame[3];
+    mCamFrame = newFrame;
+    break;
+  }
+
+  case MouseMovement::Pan: {
+    const float sensitivity = 0.005f;
+    glm::vec3 hor = mCamFrame[0];
+    glm::vec3 ver = mCamFrame[1];
+    mCamFrame[3] +=
+        glm::vec4(hor * dx * sensitivity - ver * dy * sensitivity, 0.0f);
+    break;
+  }
+
+  default:
+    assert("Unhandled mouse movement" && false);
+    return;
+  }
+}
+
+void Application::mouseScrollCallback(double xoffset, double yoffset) {
+  (void)xoffset;
+  const float sensitivity = 0.1f;
+  mCamFrame[3] += mCamFrame[2] * static_cast<float>(yoffset) * sensitivity;
 }
 
 void Application::setState(std::unique_ptr<AppState> newState) {
