@@ -152,6 +152,18 @@ void AddFrameState::createGui() {
   ImGui::End();
 }
 
+bool AddFrameState::keyCallback(int key, int scancode, int action, int mods) {
+  // Handle also GLFW_REPEAT.
+  if (key == GLFW_KEY_LEFT && action != GLFW_RELEASE) {
+    prevFrame();
+    return true;
+  } else if (key == GLFW_KEY_RIGHT && action != GLFW_RELEASE) {
+    nextFrame();
+    return true;
+  }
+  return false;
+}
+
 void AddFrameState::showFrame() {
   assert(!mFrames.empty() && mCurrentFrame != mFrames.end());
   if (ImGui::SliderFloat("Blend", &mBlend, 0.0f, 1.0f)) {
@@ -181,25 +193,11 @@ void AddFrameState::showFrame() {
 
   ImGui::PushButtonRepeat(true);
   if (ImGui::Button("Previous")) {
-    do {
-      if (mCurrentFrame == mFrames.begin()) {
-        mCurrentFrame = mFrames.end();
-      }
-      // When updateTexture remove invalid frames, it forwards the iterator as
-      // well, so we need to backward every time.
-      mCurrentFrame--;
-    } while (!updateTexture() && !mFrames.empty());
+    prevFrame();
   }
   ImGui::SameLine();
   if (ImGui::Button("Next")) {
-    // When updateTexture remove invalid frames, it already forwards the
-    // iterator, so we do it only the first time.
-    mCurrentFrame++;
-    do {
-      if (mCurrentFrame == mFrames.end()) {
-        mCurrentFrame = mFrames.begin();
-      }
-    } while (!updateTexture() && !mFrames.empty());
+    nextFrame();
   }
   ImGui::PopButtonRepeat();
 
@@ -215,4 +213,26 @@ void AddFrameState::showFrame() {
     }
     // Do not go back to the editor, to allow adding multiple frames at once.
   }
+}
+
+void AddFrameState::prevFrame() {
+  do {
+    if (mCurrentFrame == mFrames.begin()) {
+      mCurrentFrame = mFrames.end();
+    }
+    // When updateTexture remove invalid frames, it forwards the iterator as
+    // well, so we need to backward every time.
+    mCurrentFrame--;
+  } while (!updateTexture() && !mFrames.empty());
+}
+
+void AddFrameState::nextFrame() {
+  // When updateTexture remove invalid frames, it already forwards the
+  // iterator, so we do it only the first time.
+  mCurrentFrame++;
+  do {
+    if (mCurrentFrame == mFrames.end()) {
+      mCurrentFrame = mFrames.begin();
+    }
+  } while (!updateTexture() && !mFrames.empty());
 }

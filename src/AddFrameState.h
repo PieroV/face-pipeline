@@ -26,11 +26,14 @@ public:
   AddFrameState(AddFrameState &&other) = delete;
   AddFrameState &operator=(AddFrameState &&other) = delete;
   void createGui() override;
+  bool keyCallback(int key, int scancode, int action, int mods) override;
 
 private:
   void listFrames();
   bool updateTexture();
   void showFrame();
+  void prevFrame();
+  void nextFrame();
 
   Application &mApp;
   FrameSet mFrames;
