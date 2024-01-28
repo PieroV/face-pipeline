@@ -178,10 +178,16 @@ int Application::run(const char *dataDirectory) {
 }
 
 void Application::keyCallback(int key, int scancode, int action, int mods) {
-  (void)scancode;
-  (void)mods;
+  if (mCurrentState &&
+      mCurrentState->keyCallback(key, scancode, action, mods)) {
+    return;
+  }
   if (key == GLFW_KEY_F10 && action == GLFW_PRESS) {
     mImguiDemo = !mImguiDemo;
+    return;
+  }
+  if (key == GLFW_KEY_R && action == GLFW_PRESS) {
+    mCamFrame = glm::mat4(1.0f);
   }
 }
 

@@ -14,6 +14,7 @@ public:
   EditorState(Application &app);
   void createGui() override;
   void render(const glm::mat4 &pv) override;
+  bool keyCallback(int key, int scancode, int action, int mods) override;
 
 private:
   void createMain();

@@ -54,6 +54,13 @@ private:
 
 class Scene {
 public:
+  enum Symmetry {
+    MirrorNone,
+    MirrorOnNegX,
+    MirrorOnPosX,
+    MirrorMax,
+  };
+
   static std::pair<std::unique_ptr<Scene>, std::vector<std::string>>
   load(const std::filesystem::path &dataDirectory);
   void save() const;
@@ -76,6 +83,7 @@ public:
   bool paintUniform = false;
   bool voxelDown = false;
   double voxelSize = 0.01;
+  Symmetry mirror = MirrorNone;
 
 private:
   struct RenderData {

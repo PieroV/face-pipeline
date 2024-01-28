@@ -21,6 +21,13 @@ public:
   virtual ~AppState() = default;
   virtual void createGui() {}
   virtual void render(const glm::mat4 &pv) { (void)pv; }
+  virtual bool keyCallback(int key, int scancode, int action, int mods) {
+    (void)key;
+    (void)scancode;
+    (void)action;
+    (void)mods;
+    return false;
+  }
 };
 
 class Application {

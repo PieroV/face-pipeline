@@ -76,6 +76,22 @@ void EditorState::createMain() {
 
   ImGui::Checkbox("Paint uniform", &scene.paintUniform);
 
+  assert(mScene.mirror >= 0 && mScene.mirror < Scene::MirrorMax);
+  static const char *symLabels[Scene::MirrorMax] = {
+      "No symmetry", "Mirror on negative X", "Mirror on positive X"};
+  if (ImGui::BeginCombo("Symmetry", symLabels[mScene.mirror])) {
+    for (int i = 0; i < Scene::MirrorMax; i++) {
+      bool isSelected = (mScene.mirror == i);
+      if (ImGui::Selectable(symLabels[i], isSelected)) {
+        mScene.mirror = static_cast<Scene::Symmetry>(i);
+      }
+      if (isSelected) {
+        ImGui::SetItemDefaultFocus();
+      }
+    }
+    ImGui::EndCombo();
+  }
+
   bool voxelChanged =
       ImGui::Checkbox("Voxel down for visualization", &scene.voxelDown);
   voxelChanged =
@@ -125,3 +141,29 @@ void EditorState::createEdit() {
 }
 
 void EditorState::render(const glm::mat4 &pv) { mApp.getScene().render(pv); }
+
+bool EditorState::keyCallback(int key, int scancode, int action, int mods) {
+  (void)scancode;
+  if (key == GLFW_KEY_M && action == GLFW_PRESS) {
+    bool back = mods & GLFW_MOD_SHIFT;
+    switch (mScene.mirror) {
+    case Scene::MirrorNone:
+      mScene.mirror = back ? Scene::MirrorOnPosX : Scene::MirrorOnNegX;
+      break;
+    case Scene::MirrorOnNegX:
+      mScene.mirror = back ? Scene::MirrorNone : Scene::MirrorOnPosX;
+      break;
+    case Scene::MirrorOnPosX:
+      mScene.mirror = back ? Scene::MirrorOnNegX : Scene::MirrorNone;
+      break;
+    default:
+      assert("Invalid mirror value" && false);
+    }
+    return true;
+  }
+  if (key == GLFW_KEY_S && (mods & GLFW_MOD_CONTROL) && action == GLFW_PRESS) {
+    mScene.save();
+    return true;
+  }
+  return false;
+}

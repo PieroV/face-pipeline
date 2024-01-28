@@ -271,26 +271,44 @@ void Scene::render(const glm::mat4 &pv) const {
   assert(mNumPoints.size() == clouds.size());
   mShader.use();
 
-  GLint pvmLoc = mShader.getUniformLocation("pvm");
+  GLint pvLoc = mShader.getUniformLocation("pv");
+  GLint modelLoc = mShader.getUniformLocation("model");
   GLint paintUniformLoc = mShader.getUniformLocation("paintUniform");
   GLint uniformColorLoc = mShader.getUniformLocation("uniformColor");
-  assert(pvmLoc >= 0 && paintUniformLoc >= 0 && uniformColorLoc >= 0);
+  GLint mirrorLoc = mShader.getUniformLocation("mirror");
+  GLint mirrorDrawLoc = mShader.getUniformLocation("mirrorDraw");
+  assert(pvLoc >= 0 && modelLoc >= 0 && paintUniformLoc >= 0 &&
+         uniformColorLoc >= 0 && mirrorLoc >= 0 && mirrorDrawLoc >= 0);
+
+  glUniformMatrix4fv(pvLoc, 1, GL_FALSE, glm::value_ptr(pv));
 
   glBindVertexArray(mRenderData.vao);
 
-  glUniformMatrix4fv(pvmLoc, 1, GL_FALSE, glm::value_ptr(pv));
+  glm::mat4 model(1.0f);
+  glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+  // Axes are never painted in uniform and never subject to symmetry.
   glUniform1i(paintUniformLoc, 0);
+  glUniform1i(mirrorLoc, static_cast<int>(MirrorNone));
+  glUniform1i(mirrorDrawLoc, 0);
   glDrawArrays(GL_LINES, 0, 6);
+
   glUniform1i(paintUniformLoc, paintUniform);
+  glUniform1i(mirrorLoc, static_cast<int>(mirror));
 
   GLsizei offset = 6;
   for (size_t i = 0; i < clouds.size(); i++) {
     const PointCloud &pcd = clouds[i];
     if (!pcd.hidden) {
-      glm::mat4 pvm = pv * pcd.getMatrix();
-      glUniformMatrix4fv(pvmLoc, 1, GL_FALSE, glm::value_ptr(pvm));
+      model = pcd.getMatrix();
+      glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
       glUniform3fv(uniformColorLoc, 1, glm::value_ptr(pcd.color));
       glDrawArrays(GL_POINTS, offset, mNumPoints[i]);
+      if (mirror != MirrorNone) {
+        // Draw again, the shader will reverse the positions.
+        glUniform1i(mirrorDrawLoc, 1);
+        glDrawArrays(GL_POINTS, offset, mNumPoints[i]);
+        glUniform1i(mirrorDrawLoc, 0);
+      }
     }
     offset += mNumPoints[i];
   }
