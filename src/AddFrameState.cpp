@@ -153,6 +153,8 @@ void AddFrameState::createGui() {
 }
 
 bool AddFrameState::keyCallback(int key, int scancode, int action, int mods) {
+  (void)scancode;
+  (void)mods;
   // Handle also GLFW_REPEAT.
   if (key == GLFW_KEY_LEFT && action != GLFW_RELEASE) {
     prevFrame();

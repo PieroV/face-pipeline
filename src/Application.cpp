@@ -165,6 +165,7 @@ int Application::run(const char *dataDirectory) {
 
     glm::mat4 proj = glm::perspective(glm::radians(45.0f), (float)w / (float)h,
                                       0.1f, 100.0f);
+    // Eye at center simplifies the rotation.
     glm::mat4 view = mCamFrame * glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f),
                                              glm::vec3(0.0f, 2.0f, 0.0f),
                                              glm::vec3(0.0f, 0.0f, 1.0f));
@@ -245,10 +246,11 @@ void Application::mousePosCallback(double x, double y) {
 
   case MouseMovement::Pan: {
     const float sensitivity = 0.005f;
-    glm::vec3 hor = mCamFrame[0];
-    glm::vec3 ver = mCamFrame[1];
-    mCamFrame[3] +=
-        glm::vec4(hor * dx * sensitivity - ver * dy * sensitivity, 0.0f);
+    // Our frame is in view space, Y is now the vertical axis.
+    // The translation happens just before the  projection, so we do not need to
+    // transform it in any way, we just update the values.
+    mCamFrame[3][0] += dx * sensitivity;
+    mCamFrame[3][1] -= dy * sensitivity;
     break;
   }
 
@@ -261,7 +263,8 @@ void Application::mousePosCallback(double x, double y) {
 void Application::mouseScrollCallback(double xoffset, double yoffset) {
   (void)xoffset;
   const float sensitivity = 0.1f;
-  mCamFrame[3] += mCamFrame[2] * static_cast<float>(yoffset) * sensitivity;
+  // Same considerations as pan.
+  mCamFrame[3][2] += static_cast<float>(yoffset) * sensitivity;
 }
 
 void Application::setState(std::unique_ptr<AppState> newState) {
