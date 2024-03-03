@@ -146,14 +146,14 @@ Image createColormap(const Image &rgb, const Image &depth, float blend,
     throw std::invalid_argument("Not a depth image or unsupported format");
   }
 
-  MatrixXf vals;
+  Matrix<float, Dynamic, Dynamic, RowMajor> vals;
   if (depth.bytes_per_channel_ == 2) {
-    using SrcMap = Map<const Matrix<uint16_t, Dynamic, Dynamic>>;
+    using SrcMap = Map<const Matrix<uint16_t, Dynamic, Dynamic, RowMajor>>;
     SrcMap src(reinterpret_cast<const uint16_t *>(depth.data_.data()),
                depth.height_, depth.width_);
     vals = src.cast<float>() * (scale / trunc);
   } else if (depth.bytes_per_channel_ == 4) {
-    using SrcMap = Map<const Matrix<float, Dynamic, Dynamic>>;
+    using SrcMap = Map<const Matrix<float, Dynamic, Dynamic, RowMajor>>;
     SrcMap src(reinterpret_cast<const float *>(depth.data_.data()),
                depth.height_, depth.width_);
     vals = src * (scale / trunc);
