@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include <set>
+
 #include "Application.h"
 #include "Scene.h"
 
@@ -26,4 +28,8 @@ private:
   bool mEditing = false;
   size_t mEditIndex = 0;
   std::string mPcdFilename;
+  // Use set instead of unordered_set to make the order in the alignment
+  // predictable. In practice, the difference in performance will probably not
+  // matter a lot.
+  std::set<size_t> mSelected;
 };

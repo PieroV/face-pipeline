@@ -37,6 +37,9 @@ public:
   nlohmann::json toJson() const;
   void loadData(const Scene &scene);
 
+  const open3d::geometry::PointCloud &getPointCloud() const;
+  std::shared_ptr<open3d::geometry::PointCloud> getPointCloudCopy() const;
+
   std::string name;
   glm::vec3 translationPre;
   glm::vec3 euler;
@@ -48,6 +51,9 @@ public:
   double trunc;
 
 private:
+  // Open3D uses shared_ptrs, but we throw when we create them they are nullptr.
+  // So, they will never be nullptr and you can dereference them without further
+  // checks.
   std::shared_ptr<open3d::geometry::RGBDImage> mRGBD;
   std::shared_ptr<open3d::geometry::PointCloud> mPointCloud;
 };

@@ -12,6 +12,7 @@
 #include "imgui_stdlib.h"
 
 #include "AddFrameState.h"
+#include "AlignState.h"
 
 EditorState::EditorState(Application &app)
     : mApp(app), mScene(app.getScene()) {}
@@ -26,16 +27,28 @@ void EditorState::createMain() {
 
   ImGui::Begin("Main");
 
-  if (ImGui::BeginTable("clouds-table", 4)) {
+  if (ImGui::BeginTable("clouds-table", 5)) {
+    ImGui::TableSetupColumn("Select", ImGuiTableColumnFlags_WidthFixed);
     ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
     ImGui::TableSetupColumn("Edit", ImGuiTableColumnFlags_WidthFixed);
     ImGui::TableSetupColumn("Delete", ImGuiTableColumnFlags_WidthFixed);
     ImGui::TableSetupColumn("Hide", ImGuiTableColumnFlags_WidthFixed);
     for (size_t i = 0; i < scene.clouds.size(); i++) {
-      ImGui::TableNextRow();
-      ImGui::TableSetColumnIndex(0);
-      ImGui::Text("%zu %s", i, scene.clouds[i].name.c_str());
-      ImGui::TableSetColumnIndex(1);
+      ImGui::TableNextColumn();
+      // Since we have an ordered set we could do something smart with an
+      // iterator, but we do not expect to have many elements in it, so this is
+      // probably fine.
+      auto it = mSelected.find(i);
+      bool selected = it != mSelected.end();
+      ImGui::Checkbox(std::to_string(i).c_str(), &selected);
+      if (selected && it == mSelected.end()) {
+        mSelected.insert(i);
+      } else if (!selected && it != mSelected.end()) {
+        mSelected.erase(it);
+      }
+      ImGui::TableNextColumn();
+      ImGui::TextUnformatted(scene.clouds[i].name.c_str());
+      ImGui::TableNextColumn();
       char id[50];
       const auto &c = scene.clouds[i].color;
       ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(c.x, c.y, c.z, 1.0f));
@@ -45,30 +58,37 @@ void EditorState::createMain() {
         mEditIndex = i;
       }
       ImGui::PopStyleColor(1);
-      ImGui::TableSetColumnIndex(2);
+      ImGui::TableNextColumn();
       snprintf(id, sizeof(id), "Delete##%zu", i);
       if (ImGui::Button(id)) {
         if (mEditing && mEditIndex == i) {
           mEditing = false;
         }
         scene.clouds.erase(scene.clouds.begin() + i);
+        mSelected.erase(i);
         i--;
         scene.refreshBuffer();
       }
-      ImGui::TableSetColumnIndex(3);
+      ImGui::TableNextColumn();
       snprintf(id, sizeof(id), "Hidden##%zu", i);
       ImGui::Checkbox(id, &scene.clouds[i].hidden);
     }
     ImGui::EndTable();
   }
 
+  ImGui::BeginDisabled(mSelected.size() != 2);
+  if (ImGui::Button("Align")) {
+    assert(mSelected.size() == 2);
+    auto it = mSelected.begin();
+    size_t a = *it++;
+    size_t b = *it;
+    mApp.setState(std::make_unique<AlignState>(mApp, a, b));
+  }
+  ImGui::EndDisabled();
+
   if (ImGui::Button("Add")) {
     mApp.setState(std::make_unique<AddFrameState>(mApp));
   }
-
-  // Always center this window when appearing
-  ImVec2 center = ImGui::GetMainViewport()->GetCenter();
-  ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
 
   if (ImGui::Button("Save")) {
     scene.save();
