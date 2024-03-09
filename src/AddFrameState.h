@@ -26,6 +26,7 @@ public:
   AddFrameState(AddFrameState &&other) = delete;
   AddFrameState &operator=(AddFrameState &&other) = delete;
   void createGui() override;
+  void render(const glm::mat4 &pv) override;
   bool keyCallback(int key, int scancode, int action, int mods) override;
 
 private:

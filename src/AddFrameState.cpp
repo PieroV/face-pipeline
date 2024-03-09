@@ -152,6 +152,8 @@ void AddFrameState::createGui() {
   ImGui::End();
 }
 
+void AddFrameState::render(const glm::mat4 &pv) { mApp.getScene().render(pv); }
+
 bool AddFrameState::keyCallback(int key, int scancode, int action, int mods) {
   (void)scancode;
   (void)mods;
