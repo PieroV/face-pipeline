@@ -7,6 +7,7 @@
 #include "EditorState.h"
 
 #include "glm/gtc/type_ptr.hpp"
+#include "glm/gtx/euler_angles.hpp"
 
 #include "imgui.h"
 #include "imgui_stdlib.h"
@@ -19,7 +20,12 @@ EditorState::EditorState(Application &app)
 
 void EditorState::createGui() {
   createMain();
-  createEdit();
+  if (mEditing) {
+    createEdit();
+  }
+  if (mMultiEditing) {
+    createMultiEdit();
+  }
 }
 
 void EditorState::createMain() {
@@ -40,7 +46,9 @@ void EditorState::createMain() {
       // probably fine.
       auto it = mSelected.find(i);
       bool selected = it != mSelected.end();
+      ImGui::BeginDisabled(mMultiEditing);
       ImGui::Checkbox(std::to_string(i).c_str(), &selected);
+      ImGui::EndDisabled();
       if (selected && it == mSelected.end()) {
         mSelected.insert(i);
       } else if (!selected && it != mSelected.end()) {
@@ -54,8 +62,7 @@ void EditorState::createMain() {
       ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(c.x, c.y, c.z, 1.0f));
       snprintf(id, sizeof(id), "Edit##%zu", i);
       if (ImGui::Button(id)) {
-        mEditing = true;
-        mEditIndex = i;
+        beginEdit(i);
       }
       ImGui::PopStyleColor(1);
       ImGui::TableNextColumn();
@@ -66,6 +73,7 @@ void EditorState::createMain() {
         }
         scene.clouds.erase(scene.clouds.begin() + i);
         mSelected.erase(i);
+        mMultiEditMatrices.erase(i);
         i--;
         scene.refreshBuffer();
       }
@@ -76,6 +84,27 @@ void EditorState::createMain() {
     ImGui::EndTable();
   }
 
+  ImGui::BeginDisabled(mMultiEditing);
+  if (ImGui::Button("Select all")) {
+    for (size_t i = 0; i < scene.clouds.size(); i++) {
+      mSelected.insert(i);
+    }
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("Select none")) {
+    mSelected.clear();
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("Select visible")) {
+    mSelected.clear();
+    for (size_t i = 0; i < scene.clouds.size(); i++) {
+      if (!scene.clouds[i].hidden) {
+        mSelected.insert(i);
+      }
+    }
+  }
+  ImGui::EndDisabled();
+
   ImGui::BeginDisabled(mSelected.size() != 2);
   if (ImGui::Button("Align")) {
     assert(mSelected.size() == 2);
@@ -83,6 +112,12 @@ void EditorState::createMain() {
     size_t a = *it++;
     size_t b = *it;
     mApp.setState(std::make_unique<AlignState>(mApp, a, b));
+  }
+  ImGui::EndDisabled();
+
+  ImGui::BeginDisabled(mSelected.empty());
+  if (ImGui::Button("Edit multiple")) {
+    beginMultiEdit();
   }
   ImGui::EndDisabled();
 
@@ -130,33 +165,55 @@ void EditorState::createEdit() {
   Scene &scene = mApp.getScene();
   if (mEditIndex >= scene.clouds.size()) {
     mEditing = false;
-  }
-  if (!mEditing) {
     return;
   }
+  PointCloud &cloud = scene.clouds[mEditIndex];
 
   ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2(400, 120));
   if (ImGui::Begin("Edit", &mEditing)) {
-    if (!scene.clouds[mEditIndex].rawMatrix) {
-      ImGui::InputFloat3(
-          "Translation pre",
-          glm::value_ptr(scene.clouds[mEditIndex].translationPre));
-      ImGui::DragFloat3("Rotation",
-                        glm::value_ptr(scene.clouds[mEditIndex].euler), 0.5f,
-                        -360.0f, 360.0f);
-      ImGui::InputFloat3(
-          "Translation post",
-          glm::value_ptr(scene.clouds[mEditIndex].translationPost));
-    }
-    ImGui::ColorEdit3("Color", glm::value_ptr(scene.clouds[mEditIndex].color));
-    ImGui::Checkbox("Raw matrix", &scene.clouds[mEditIndex].rawMatrix);
-    if (ImGui::InputDouble("Depth max value",
-                           &scene.clouds[mEditIndex].trunc)) {
-      scene.clouds[mEditIndex].loadData(scene);
+    if (ImGui::InputDouble("Depth max value", &cloud.trunc)) {
+      cloud.loadData(scene);
       scene.refreshBuffer();
     }
-    ImGui::End();
+    ImGui::ColorEdit3("Color", glm::value_ptr(cloud.color));
+    ImGui::Checkbox("Raw matrix", &cloud.rawMatrix);
+    if (!cloud.rawMatrix) {
+      ImGui::InputFloat3("Translation pre",
+                         glm::value_ptr(cloud.translationPre));
+      ImGui::DragFloat3("Rotation", glm::value_ptr(cloud.euler), 0.5f, -360.0f,
+                        360.0f);
+      ImGui::InputFloat3("Translation post",
+                         glm::value_ptr(cloud.translationPost));
+    } else {
+      glm::mat4 rowMajor = glm::transpose(mEditMatrix);
+      ImGui::InputFloat4("Row 0", glm::value_ptr(rowMajor[0]));
+      ImGui::InputFloat4("Row 1", glm::value_ptr(rowMajor[1]));
+      ImGui::InputFloat4("Row 2", glm::value_ptr(rowMajor[2]));
+      ImGui::InputFloat4("Row 3", glm::value_ptr(rowMajor[3]));
+      mEditMatrix = glm::transpose(rowMajor);
+      cloud.matrix = multiTransformUi() * mEditMatrix;
+      if (ImGui::Button("Update matrix")) {
+        mEditMatrix = cloud.matrix;
+        mTransformations.clear();
+      }
+    }
   }
+  ImGui::End();
+  ImGui::PopStyleVar();
+}
+
+void EditorState::createMultiEdit() {
+  auto &clouds = mApp.getScene().clouds;
+
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2(400, 120));
+  if (ImGui::Begin("Edit multiple", &mMultiEditing)) {
+    glm::mat4 matrix = multiTransformUi();
+    for (auto &pair : mMultiEditMatrices) {
+      assert(pair.first < clouds.size());
+      clouds[pair.first].matrix = matrix * pair.second;
+    }
+  }
+  ImGui::End();
   ImGui::PopStyleVar();
 }
 
@@ -186,4 +243,82 @@ bool EditorState::keyCallback(int key, int scancode, int action, int mods) {
     return true;
   }
   return false;
+}
+
+void EditorState::beginEdit(size_t idx) {
+  mEditing = true;
+  const Scene &scene = mApp.getScene();
+  assert(idx < scene.clouds.size());
+  mEditIndex = idx;
+  mEditMatrix = scene.clouds[idx].getMatrix();
+  mTransformations.clear();
+  mMultiEditing = false;
+}
+
+void EditorState::beginMultiEdit() {
+  auto &clouds = mApp.getScene().clouds;
+  mEditing = false;
+  mMultiEditing = true;
+  mMultiEditMatrices.clear();
+  for (size_t i : mSelected) {
+    assert(i < clouds.size());
+    // We need to force the point clouds to switch to the raw matrix.
+    glm::mat4 matrix = clouds[i].getMatrix();
+    mMultiEditMatrices.insert({i, matrix});
+    clouds[i].rawMatrix = true;
+  }
+  mTransformations.clear();
+}
+
+glm::mat4 EditorState::multiTransformUi() {
+  glm::mat4 matrix(1.0f);
+  for (size_t i = 0; i < mTransformations.size(); i++) {
+    auto &tr = mTransformations[i];
+    char deleteLabel[15];
+    snprintf(deleteLabel, sizeof(deleteLabel), "X##%zu", i);
+    char label[30];
+    switch (tr.first) {
+    case Transformation::Translation:
+      snprintf(label, sizeof(label), "Translation##%zu", i);
+      ImGui::InputFloat3(label, glm::value_ptr(tr.second));
+      ImGui::SameLine();
+      if (ImGui::Button(deleteLabel)) {
+        mTransformations.erase(mTransformations.begin() + i);
+        i--;
+        continue;
+      }
+      matrix = glm::translate(glm::mat4(1.0f), tr.second) * matrix;
+      break;
+    case Transformation::Rotation:
+      snprintf(label, sizeof(label), "Rotation##%zu", i);
+      ImGui::DragFloat3(label, glm::value_ptr(tr.second), 0.5f, -360.0f,
+                        360.0f);
+      ImGui::SameLine();
+      if (ImGui::Button(deleteLabel)) {
+        mTransformations.erase(mTransformations.begin() + i);
+        i--;
+        continue;
+      }
+      matrix = glm::eulerAngleYXZ(glm::radians(tr.second.y),
+                                  glm::radians(tr.second.x),
+                                  glm::radians(tr.second.z)) *
+               matrix;
+      break;
+    }
+  }
+
+  if (ImGui::Button("Add rotation")) {
+    mTransformations.push_back({Transformation::Rotation, {0.0f, 0.0f, 0.0f}});
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("Add translation")) {
+    mTransformations.push_back(
+        {Transformation::Translation, {0.0f, 0.0f, 0.0f}});
+  }
+  if (ImGui::Button("Remove all")) {
+    mTransformations.clear();
+    return glm::mat4(1.0f);
+  }
+
+  return matrix;
 }

@@ -19,17 +19,33 @@ public:
   bool keyCallback(int key, int scancode, int action, int mods) override;
 
 private:
+  enum class Transformation {
+    Translation,
+    Rotation,
+  };
+
   void createMain();
   void createEdit();
+  void createMultiEdit();
+  void beginEdit(size_t idx);
+  void beginMultiEdit();
+  glm::mat4 multiTransformUi();
 
   Application &mApp;
   Scene &mScene;
 
-  bool mEditing = false;
-  size_t mEditIndex = 0;
   std::string mPcdFilename;
   // Use set instead of unordered_set to make the order in the alignment
   // predictable. In practice, the difference in performance will probably not
   // matter a lot.
   std::set<size_t> mSelected;
+
+  bool mEditing = false;
+  size_t mEditIndex = 0;
+  glm::mat4 mEditMatrix;
+
+  bool mMultiEditing = false;
+  std::unordered_map<size_t, glm::mat4> mMultiEditMatrices;
+
+  std::vector<std::pair<Transformation, glm::vec3>> mTransformations;
 };
