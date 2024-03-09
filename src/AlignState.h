@@ -25,6 +25,7 @@ private:
 
   size_t mReferenceIndex;
   size_t mAlignIndex;
+  glm::mat4 mOrigMatrix;
 
   double mVoxelSize = 0.005;
   open3d::geometry::KDTreeSearchParamKNN mNormalsParam;

@@ -21,8 +21,10 @@ AlignState::AlignState(Application &app, size_t reference, size_t toAlign)
     : mApp(app), mReferenceIndex(reference), mAlignIndex(toAlign) {
   Scene &scene = app.getScene();
   scene.paintUniform = true;
+  assert(reference < scene.clouds.size() && toAlign < scene.clouds.size());
   mReference = scene.clouds[reference].getPointCloudCopy();
   mAlign = scene.clouds[toAlign].getPointCloudCopy();
+  mOrigMatrix = scene.clouds[toAlign].getMatrix();
   assert(mReference && mAlign);
   estimateNormals();
 }
@@ -37,6 +39,8 @@ void AlignState::createGui() {
   ImGui::Text("Aligning: %zu - %s", mAlignIndex, align.name.c_str());
   ImGui::Text("Reference: %zu - %s", mReferenceIndex, ref.name.c_str());
   if (ImGui::Button("Swap")) {
+    align.matrix = mOrigMatrix;
+    mOrigMatrix = ref.matrix;
     std::swap(mReferenceIndex, mAlignIndex);
     std::swap(mReference, mAlign);
   }
@@ -65,6 +69,9 @@ void AlignState::createGui() {
     runIcp();
   }
   ImGui::EndDisabled();
+  if (ImGui::Button("Restore original")) {
+    align.matrix = mOrigMatrix;
+  }
 
   if (ImGui::Button("Close")) {
     mApp.setState(std::make_unique<EditorState>(mApp));
