@@ -34,6 +34,7 @@ void EditorState::createGui() {
 
 void EditorState::createMain() {
   Scene &scene = mApp.getScene();
+  auto &clouds = scene.clouds;
 
   ImGui::Begin("Main");
 
@@ -43,7 +44,7 @@ void EditorState::createMain() {
     ImGui::TableSetupColumn("Edit", ImGuiTableColumnFlags_WidthFixed);
     ImGui::TableSetupColumn("Delete", ImGuiTableColumnFlags_WidthFixed);
     ImGui::TableSetupColumn("Hide", ImGuiTableColumnFlags_WidthFixed);
-    for (size_t i = 0; i < scene.clouds.size(); i++) {
+    for (size_t i = 0; i < clouds.size(); i++) {
       ImGui::TableNextColumn();
       // Since we have an ordered set we could do something smart with an
       // iterator, but we do not expect to have many elements in it, so this is
@@ -59,10 +60,10 @@ void EditorState::createMain() {
         mSelected.erase(it);
       }
       ImGui::TableNextColumn();
-      ImGui::TextUnformatted(scene.clouds[i].name.c_str());
+      ImGui::TextUnformatted(clouds[i].name.c_str());
       ImGui::TableNextColumn();
       char id[50];
-      const auto &c = scene.clouds[i].color;
+      const auto &c = clouds[i].color;
       ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(c.x, c.y, c.z, 1.0f));
       snprintf(id, sizeof(id), "Edit##%zu", i);
       if (ImGui::Button(id)) {
@@ -75,7 +76,7 @@ void EditorState::createMain() {
         if (mEditing && mEditIndex == i) {
           mEditing = false;
         }
-        scene.clouds.erase(scene.clouds.begin() + i);
+        clouds.erase(clouds.begin() + i);
         mSelected.erase(i);
         mMultiEditMatrices.erase(i);
         i--;
@@ -83,14 +84,14 @@ void EditorState::createMain() {
       }
       ImGui::TableNextColumn();
       snprintf(id, sizeof(id), "Hidden##%zu", i);
-      ImGui::Checkbox(id, &scene.clouds[i].hidden);
+      ImGui::Checkbox(id, &clouds[i].hidden);
     }
     ImGui::EndTable();
   }
 
   ImGui::BeginDisabled(mMultiEditing);
   if (ImGui::Button("Select all")) {
-    for (size_t i = 0; i < scene.clouds.size(); i++) {
+    for (size_t i = 0; i < clouds.size(); i++) {
       mSelected.insert(i);
     }
   }
@@ -101,17 +102,40 @@ void EditorState::createMain() {
   ImGui::SameLine();
   if (ImGui::Button("Select visible")) {
     mSelected.clear();
-    for (size_t i = 0; i < scene.clouds.size(); i++) {
-      if (!scene.clouds[i].hidden) {
+    for (size_t i = 0; i < clouds.size(); i++) {
+      if (!clouds[i].hidden) {
         mSelected.insert(i);
       }
     }
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("Invert selection")) {
+    std::set<size_t> inverted;
+    for (size_t i = 0; i < clouds.size(); i++) {
+      if (!mSelected.count(i)) {
+        inverted.insert(i);
+      }
+    }
+    mSelected.swap(inverted);
   }
   ImGui::EndDisabled();
 
   ImGui::BeginDisabled(mSelected.empty());
   if (ImGui::Button("Edit multiple")) {
     beginMultiEdit();
+  }
+  if (ImGui::Button("Show selected")) {
+    for (size_t idx : mSelected) {
+      assert(idx < clouds.size());
+      clouds[idx].hidden = false;
+    }
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("Hide selected")) {
+    for (size_t idx : mSelected) {
+      assert(idx < clouds.size());
+      clouds[idx].hidden = true;
+    }
   }
   ImGui::EndDisabled();
 
