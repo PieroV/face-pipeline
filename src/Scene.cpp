@@ -19,21 +19,6 @@
 using json = nlohmann::json;
 namespace fs = std::filesystem;
 
-const open3d::geometry::PointCloud &PointCloud::getPointCloud() const {
-  // This should never be nullptr, since we create it on the constructor and
-  // throw if creating it failed.
-  assert(mPointCloud);
-  return *mPointCloud;
-}
-
-std::shared_ptr<open3d::geometry::PointCloud>
-PointCloud::getPointCloudCopy() const {
-  // Should throw std::bad_alloc in case of error.
-  auto copy = std::make_shared<open3d::geometry::PointCloud>(getPointCloud());
-  assert(copy);
-  return copy;
-}
-
 Scene::Scene(const std::filesystem::path &dataDirectory,
              std::vector<std::string> &warnings)
     : mDataDirectory(dataDirectory) {

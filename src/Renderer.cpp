@@ -1,8 +1,17 @@
+/**
+ * To the extent possible under law, the author has dedicated all copyright
+ * and related and neighboring rights to this software to the public domain
+ * worldwide. This software is distributed without any warranty.
+ */
+
 #include "Renderer.h"
 
+#include <algorithm>
 #include <utility>
 
 #include "glm/gtc/type_ptr.hpp"
+
+#include "open3d/geometry/TriangleMesh.h"
 
 // clang-format off
 static const float axes[] = {
@@ -36,6 +45,8 @@ Renderer::Renderer() : mShader(createShader()) {
   glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float),
                         (void *)(3 * sizeof(float)));
   glEnableVertexAttribArray(1);
+  glGenBuffers(1, &mEBO);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mEBO);
   glBindVertexArray(0);
 
   clearBuffer();
@@ -47,6 +58,8 @@ Renderer::~Renderer() {
   mVAO = 0;
   glDeleteBuffers(1, &mVBO);
   mVBO = 0;
+  glDeleteBuffers(1, &mEBO);
+  mEBO = 0;
 }
 
 void Renderer::addPointCloud(const PointCloud &pcd,
@@ -62,31 +75,63 @@ void Renderer::addPointCloud(const PointCloud &pcd,
   }
 }
 
-void Renderer::addPointCloud(const open3d::geometry::PointCloud &pcd) {
-  const size_t n = pcd.points_.size();
-  // We created a point cloud from an RGBD image, it must have colors.
-  assert(pcd.colors_.size() == n);
+void Renderer::addPoints(const std::vector<Eigen::Vector3d> &points,
+                         const std::vector<Eigen::Vector3d> &colors) {
+  const size_t n = points.size();
+  assert(colors.size() == n);
   // Magic number: 6 floats for each point.
   mBuffer.reserve(mBuffer.size() + n * 6);
   for (size_t i = 0; i < n; i++) {
-    const Eigen::Vector3d &pos = pcd.points_[i];
-    const Eigen::Vector3d &col = pcd.colors_[i];
+    const Eigen::Vector3d &pos = points[i];
+    const Eigen::Vector3d &col = colors[i];
     mBuffer.insert(mBuffer.end(), pos.data(), pos.data() + 3);
     mBuffer.insert(mBuffer.end(), col.data(), col.data() + 3);
   }
-  mOffset.push_back(static_cast<GLsizei>(mBuffer.size() / 6));
+  mOffsets.push_back(static_cast<GLsizei>(mBuffer.size() / 6));
+}
+
+void Renderer::addPointCloud(const open3d::geometry::PointCloud &pcd) {
+  addPoints(pcd.points_, pcd.colors_);
+  mIndexOffsets.push_back(static_cast<GLsizei>(mIndices.size()));
+}
+
+void Renderer::addTriangleMesh(const open3d::geometry::TriangleMesh &mesh) {
+  if (mesh.triangles_.empty()) {
+    return;
+  }
+
+  if (mesh.vertex_colors_.size() != mesh.vertices_.size()) {
+    throw std::runtime_error(
+        "Only colored meshes are supported at the moment.");
+  }
+  addPoints(mesh.vertices_, mesh.vertex_colors_);
+
+  static_assert(sizeof(Eigen::Vector3i) == 3 * sizeof(int),
+                "Cannot copy indices as they were raw data.");
+  const int *triangles = mesh.triangles_[0].data();
+  mIndices.insert(mIndices.end(), triangles,
+                  triangles + mesh.triangles_.size() * 3);
+  mIndexOffsets.push_back(static_cast<GLsizei>(mIndices.size()));
 }
 
 void Renderer::uploadBuffer() {
   glBindVertexArray(mVAO);
   glBufferData(GL_ARRAY_BUFFER, mBuffer.size() * sizeof(float), mBuffer.data(),
                GL_STATIC_DRAW);
+  if (!mIndices.empty()) {
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, mIndices.size() * sizeof(int),
+                 mIndices.data(), GL_STATIC_DRAW);
+  }
   glBindVertexArray(0);
 }
 
 void Renderer::clearBuffer() {
   mBuffer.assign(axes, axes + sizeof(axes) / sizeof(*axes));
-  mOffset.assign({6});
+  // 6 vertices already
+  mOffsets.assign({6});
+  mIndices.clear();
+  // No indices used by the axes
+  mIndexOffsets.assign({0});
 }
 
 void Renderer::beginRendering(const glm::mat4 &pv) const {
@@ -109,16 +154,29 @@ void Renderer::renderPointCloud(size_t idx, const glm::mat4 &model,
   if (uniformColor) {
     glUniform3fv(mUniformColorLoc, 1, glm::value_ptr(*uniformColor));
   }
-  GLsizei offset = mOffset.at(idx);
-  GLsizei num = mOffset.at(idx + 1) - offset;
+  // 0 are axes, so idx is actually idx + 1 here.
+  GLsizei offset = mOffsets.at(idx);
+  GLsizei count = mOffsets.at(idx + 1) - offset;
   glUniform1i(mMirrorLoc, static_cast<int>(mirror));
-  glDrawArrays(GL_POINTS, offset, num);
+  glDrawArrays(GL_POINTS, offset, count);
   if (mirror != MirrorNone) {
     // Draw again, the shader will reverse the positions.
     glUniform1i(mMirrorDrawLoc, 1);
-    glDrawArrays(GL_POINTS, offset, num);
+    glDrawArrays(GL_POINTS, offset, count);
     glUniform1i(mMirrorDrawLoc, 0);
   }
+}
+
+void Renderer::renderIndexedMesh(size_t idx, const glm::mat4 &model) const {
+  glUniformMatrix4fv(mModelLoc, 1, GL_FALSE, glm::value_ptr(model));
+  glUniform1i(mPaintUniformLoc, 0);
+  glUniform1i(mMirrorLoc, 0);
+  glUniform1i(mMirrorDrawLoc, 0);
+  GLsizei offset = mIndexOffsets.at(idx);
+  GLsizei count = mIndexOffsets.at(idx + 1) - offset;
+  glDrawElementsBaseVertex(GL_TRIANGLES, count, GL_UNSIGNED_INT,
+                           (void *)(uintptr_t)offset,
+                           static_cast<GLint>(mOffsets.at(idx)));
 }
 
 void Renderer::endRendering() const { glBindVertexArray(0); }

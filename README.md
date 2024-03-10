@@ -38,16 +38,24 @@ This replaces the global alignment step of Open3D's pipeline.
 The advantage of doing it manually is that you'll be able to choose the final
 placement already.
 
-This is done with the `align` C++ tool.
-
-### 4. Fine alignment with ICP
+### 4. Fine automatic alignment with ICP
 
 When you have an initial alignment, you can refine it with ICP.
-It's done with the `icp.py` script.
+
+You can select the reference point cloud and the one to align with the
+checkboxes and then click on the align button.
+
+Only one-to-one alignments are supported currently.
 
 ### 5. TSDF
 
 Finally, the point clouds are merged with Truncated Signed Distance Function.
+
+You can choose the frames to merge with the checkboxes, and then click on the
+merge button.
+
+You can then export both the merged point cloud and the triangle mesh generated
+from it in any format supported by Open3D.
 
 ## Dependencies
 

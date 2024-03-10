@@ -14,6 +14,7 @@
 
 #include "AddFrameState.h"
 #include "AlignState.h"
+#include "MergeState.h"
 #include "utilities.h"
 
 EditorState::EditorState(Application &app)
@@ -108,6 +109,12 @@ void EditorState::createMain() {
   }
   ImGui::EndDisabled();
 
+  ImGui::BeginDisabled(mSelected.empty());
+  if (ImGui::Button("Edit multiple")) {
+    beginMultiEdit();
+  }
+  ImGui::EndDisabled();
+
   ImGui::BeginDisabled(mSelected.size() != 2);
   if (ImGui::Button("Align")) {
     assert(mSelected.size() == 2);
@@ -119,8 +126,8 @@ void EditorState::createMain() {
   ImGui::EndDisabled();
 
   ImGui::BeginDisabled(mSelected.empty());
-  if (ImGui::Button("Edit multiple")) {
-    beginMultiEdit();
+  if (ImGui::Button("Merge")) {
+    mApp.setState(std::make_unique<MergeState>(mApp, mSelected));
   }
   ImGui::EndDisabled();
 

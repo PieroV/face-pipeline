@@ -28,6 +28,7 @@ public:
 
   const open3d::geometry::PointCloud &getPointCloud() const;
   std::shared_ptr<open3d::geometry::PointCloud> getPointCloudCopy() const;
+  const open3d::geometry::RGBDImage &getRgbdImage() const;
 
   std::string name;
   glm::vec3 translationPre;

@@ -26,7 +26,7 @@ public:
   const std::filesystem::path &getDataDirectory() const {
     return mDataDirectory;
   }
-  const open3d::camera::PinholeCameraIntrinsic &getCameraIntrinsic() {
+  const open3d::camera::PinholeCameraIntrinsic &getCameraIntrinsic() const {
     return mIntrinsic;
   }
   double getDepthScale() const { return mDepthScale; }
