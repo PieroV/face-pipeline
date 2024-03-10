@@ -29,6 +29,7 @@ public:
   const open3d::geometry::PointCloud &getPointCloud() const;
   std::shared_ptr<open3d::geometry::PointCloud> getPointCloudCopy() const;
   const open3d::geometry::RGBDImage &getRgbdImage() const;
+  std::shared_ptr<const open3d::geometry::RGBDImage> getMaskedRgbd() const;
 
   std::string name;
   glm::vec3 translationPre;
@@ -41,9 +42,12 @@ public:
   double trunc;
 
 private:
+  void makeMasked(const Scene &scene);
+
   // Open3D uses shared_ptrs, but we throw when we create them they are nullptr.
   // So, they will never be nullptr and you can dereference them without further
   // checks.
   std::shared_ptr<open3d::geometry::RGBDImage> mRGBD;
   std::shared_ptr<open3d::geometry::PointCloud> mPointCloud;
+  std::shared_ptr<open3d::geometry::RGBDImage> mMaskedRgbd;
 };

@@ -42,6 +42,7 @@ void MergeState::createGui() {
       unit = 'k';
     }
     ImGui::Text("Requested memory: %.3f%cB", memory, unit);
+    ImGui::Text("Voxel size: %f", mLength / mResolution);
     ImGui::InputDouble("SDF truncation value", &mSdfTrunc);
     ImGui::InputFloat3("Origin", mOrigin.data());
 
@@ -60,7 +61,9 @@ void MergeState::createGui() {
         Matrix4d matrix =
             Map<const Matrix4f>(glm::value_ptr(pcd.getMatrix())).cast<double>();
         matrix = matrix.inverse().eval();
-        volume.Integrate(pcd.getRgbdImage(), intrinsic, matrix);
+        auto maybeMasked = pcd.getMaskedRgbd();
+        volume.Integrate(maybeMasked ? *maybeMasked : pcd.getRgbdImage(),
+                         intrinsic, matrix);
       }
       mPointCloud = volume.ExtractPointCloud();
       mMesh = volume.ExtractTriangleMesh();
