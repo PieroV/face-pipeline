@@ -14,11 +14,13 @@
 
 #include "glm/glm.hpp"
 
+#include "Renderer.h"
 #include "Scene.h"
 
 class AppState {
 public:
   virtual ~AppState() = default;
+  virtual void start() {}
   virtual void createGui() {}
   virtual void render(const glm::mat4 &pv) { (void)pv; }
   virtual bool keyCallback(int key, int scancode, int action, int mods) {
@@ -44,7 +46,14 @@ public:
 
   void setState(std::unique_ptr<AppState> newState);
 
+  void setTitleDetails(const std::string &details);
+
+  Renderer &getRenderer();
   Scene &getScene();
+  const Scene &getScene() const;
+
+  void refreshBuffer(std::optional<double> voxelSize = std::nullopt);
+  void renderScene(const glm::mat4 &pv, bool paintUniform = false) const;
 
 private:
   void initGlfw();
@@ -59,6 +68,9 @@ private:
 
   GLFWwindow *mWindow = nullptr;
   bool mHasImgui = false;
+
+  // We need to defer the renderer initialization until we have loaded OpenGL.
+  std::optional<Renderer> mRenderer;
 
   std::unique_ptr<AppState> mCurrentState;
   std::unique_ptr<AppState> mPendingState;

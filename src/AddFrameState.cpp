@@ -152,7 +152,7 @@ void AddFrameState::createGui() {
   ImGui::End();
 }
 
-void AddFrameState::render(const glm::mat4 &pv) { mApp.getScene().render(pv); }
+void AddFrameState::render(const glm::mat4 &pv) { mApp.renderScene(pv); }
 
 bool AddFrameState::keyCallback(int key, int scancode, int action, int mods) {
   (void)scancode;
@@ -208,7 +208,7 @@ void AddFrameState::showFrame() {
   if (ImGui::Button("Add", ImVec2(120, 0))) {
     Scene &scene = mApp.getScene();
     scene.clouds.emplace_back(scene, mCurrentFrame->string(), mTrunc);
-    scene.refreshBuffer();
+    mApp.refreshBuffer();
     mCurrentFrame = mFrames.erase(mCurrentFrame);
     while (!mFrames.empty() && !updateTexture()) {
       if (mCurrentFrame == mFrames.end()) {

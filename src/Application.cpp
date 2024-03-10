@@ -20,6 +20,9 @@
 #include "imgui_stdlib.h"
 
 #include "LoadState.h"
+#include "utilities.h"
+
+const char appTitle[] = "Aligner";
 
 static Application *appFromWindow(GLFWwindow *window);
 
@@ -29,6 +32,7 @@ Application::Application() : mCamFrame(1.0f) {
   std::exception_ptr eptr;
   try {
     initGlfw();
+    mRenderer.emplace();
     initImgui();
   } catch (...) {
     eptr = std::current_exception();
@@ -37,6 +41,8 @@ Application::Application() : mCamFrame(1.0f) {
     terminate();
     std::rethrow_exception(eptr);
   }
+
+  initRng();
 }
 
 Application::~Application() { terminate(); }
@@ -51,7 +57,7 @@ void Application::initGlfw() {
   glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
   glfwWindowHint(GLFW_MAXIMIZED, GLFW_TRUE);
 
-  mWindow = glfwCreateWindow(1280, 720, "Aligner", nullptr, nullptr);
+  mWindow = glfwCreateWindow(1280, 720, appTitle, nullptr, nullptr);
   if (!mWindow) {
     throw std::runtime_error("Failed to create a GLFW window");
   }
@@ -114,6 +120,9 @@ void Application::terminate() {
     ImGui::DestroyContext();
     mHasImgui = false;
   }
+  if (mRenderer) {
+    mRenderer.reset();
+  }
   if (mWindow) {
     glfwDestroyWindow(mWindow);
     mWindow = nullptr;
@@ -125,6 +134,7 @@ void Application::terminate() {
 
 int Application::run(const char *dataDirectory) {
   mCurrentState = std::make_unique<LoadState>(*this, mScene, dataDirectory);
+  mCurrentState->start();
 
   ImGuiIO &io = ImGui::GetIO();
 
@@ -132,6 +142,7 @@ int Application::run(const char *dataDirectory) {
     if (mPendingState) {
       mCurrentState.reset();
       mCurrentState = std::move(mPendingState);
+      mCurrentState->start();
     }
 
     assert(mCurrentState);
@@ -274,9 +285,59 @@ void Application::setState(std::unique_ptr<AppState> newState) {
   mPendingState = std::move(newState);
 }
 
+void Application::setTitleDetails(const std::string &details) {
+  std::string title = appTitle;
+  if (!details.empty()) {
+    title += " — ";
+    title += details;
+  }
+  glfwSetWindowTitle(mWindow, title.c_str());
+}
+
+Renderer &Application::getRenderer() {
+  // Failing to initialize the renderer should close the application
+  // immediately.
+  assert(mRenderer);
+  return *mRenderer;
+}
+
 Scene &Application::getScene() {
   if (!mScene) {
     throw std::runtime_error("Scene not available.");
   }
   return *mScene;
+}
+
+const Scene &Application::getScene() const {
+  if (!mScene) {
+    throw std::runtime_error("Scene not available.");
+  }
+  return *mScene;
+}
+
+void Application::refreshBuffer(std::optional<double> voxelSize) {
+  assert(mRenderer);
+  mRenderer->clearBuffer();
+  const auto &clouds = getScene().clouds;
+  for (const PointCloud &pcd : clouds) {
+    mRenderer->addPointCloud(pcd, voxelSize);
+  }
+  mRenderer->uploadBuffer();
+}
+
+void Application::renderScene(const glm::mat4 &pv, bool paintUniform) const {
+  assert(mRenderer);
+  mRenderer->beginRendering(pv);
+  const auto &clouds = getScene().clouds;
+  for (size_t i = 0; i < clouds.size(); i++) {
+    if (clouds[i].hidden) {
+      continue;
+    }
+    std::optional<glm::vec3> color;
+    if (paintUniform) {
+      color = clouds[i].color;
+    }
+    mRenderer->renderPointCloud(i, clouds[i].getMatrix(), color);
+  }
+  mRenderer->endRendering();
 }

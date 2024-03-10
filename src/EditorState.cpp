@@ -14,9 +14,12 @@
 
 #include "AddFrameState.h"
 #include "AlignState.h"
+#include "utilities.h"
 
 EditorState::EditorState(Application &app)
     : mApp(app), mScene(app.getScene()) {}
+
+void EditorState::start() { refreshBuffer(); }
 
 void EditorState::createGui() {
   createMain();
@@ -75,7 +78,7 @@ void EditorState::createMain() {
         mSelected.erase(i);
         mMultiEditMatrices.erase(i);
         i--;
-        scene.refreshBuffer();
+        refreshBuffer();
       }
       ImGui::TableNextColumn();
       snprintf(id, sizeof(id), "Hidden##%zu", i);
@@ -129,16 +132,17 @@ void EditorState::createMain() {
     scene.save();
   }
 
-  ImGui::Checkbox("Paint uniform", &scene.paintUniform);
+  ImGui::Checkbox("Paint uniform", &mPaintUniform);
 
-  assert(mScene.mirror >= 0 && mScene.mirror < Scene::MirrorMax);
-  static const char *symLabels[Scene::MirrorMax] = {
+  Renderer::Symmetry &mirror = mApp.getRenderer().mirror;
+  assert(mirror >= 0 && mirror < Renderer::MirrorMax);
+  static const char *symLabels[Renderer::MirrorMax] = {
       "No symmetry", "Mirror on negative X", "Mirror on positive X"};
-  if (ImGui::BeginCombo("Symmetry", symLabels[mScene.mirror])) {
-    for (int i = 0; i < Scene::MirrorMax; i++) {
-      bool isSelected = (mScene.mirror == i);
+  if (ImGui::BeginCombo("Symmetry", symLabels[mirror])) {
+    for (int i = 0; i < Renderer::MirrorMax; i++) {
+      bool isSelected = (mirror == i);
       if (ImGui::Selectable(symLabels[i], isSelected)) {
-        mScene.mirror = static_cast<Scene::Symmetry>(i);
+        mirror = static_cast<Renderer::Symmetry>(i);
       }
       if (isSelected) {
         ImGui::SetItemDefaultFocus();
@@ -148,14 +152,13 @@ void EditorState::createMain() {
   }
 
   bool voxelChanged =
-      ImGui::Checkbox("Voxel down for visualization", &scene.voxelDown);
-  voxelChanged =
-      ImGui::InputDouble("Voxel size", &scene.voxelSize) || voxelChanged;
-  if (voxelChanged && scene.voxelDown && scene.voxelSize <= 0) {
-    scene.voxelDown = false;
+      ImGui::Checkbox("Voxel down for visualization", &mVoxelDown);
+  voxelChanged = ImGui::InputDouble("Voxel size", &mVoxelSize) || voxelChanged;
+  if (voxelChanged && mVoxelDown && mVoxelSize <= 0) {
+    mVoxelDown = false;
   }
   if (voxelChanged) {
-    mScene.refreshBuffer();
+    refreshBuffer();
   }
 
   ImGui::End();
@@ -173,9 +176,12 @@ void EditorState::createEdit() {
   if (ImGui::Begin("Edit", &mEditing)) {
     if (ImGui::InputDouble("Depth max value", &cloud.trunc)) {
       cloud.loadData(scene);
-      scene.refreshBuffer();
+      refreshBuffer();
     }
     ImGui::ColorEdit3("Color", glm::value_ptr(cloud.color));
+    if (ImGui::Button("New random color")) {
+      cloud.color = randomColor();
+    }
     ImGui::Checkbox("Raw matrix", &cloud.rawMatrix);
     if (!cloud.rawMatrix) {
       ImGui::InputFloat3("Translation pre",
@@ -217,21 +223,24 @@ void EditorState::createMultiEdit() {
   ImGui::PopStyleVar();
 }
 
-void EditorState::render(const glm::mat4 &pv) { mApp.getScene().render(pv); }
+void EditorState::render(const glm::mat4 &pv) {
+  mApp.renderScene(pv, mPaintUniform);
+}
 
 bool EditorState::keyCallback(int key, int scancode, int action, int mods) {
   (void)scancode;
+  Renderer::Symmetry &mirror = mApp.getRenderer().mirror;
   if (key == GLFW_KEY_M && action == GLFW_PRESS) {
     bool back = mods & GLFW_MOD_SHIFT;
-    switch (mScene.mirror) {
-    case Scene::MirrorNone:
-      mScene.mirror = back ? Scene::MirrorOnPosX : Scene::MirrorOnNegX;
+    switch (mirror) {
+    case Renderer::MirrorNone:
+      mirror = back ? Renderer::MirrorOnPosX : Renderer::MirrorOnNegX;
       break;
-    case Scene::MirrorOnNegX:
-      mScene.mirror = back ? Scene::MirrorNone : Scene::MirrorOnPosX;
+    case Renderer::MirrorOnNegX:
+      mirror = back ? Renderer::MirrorNone : Renderer::MirrorOnPosX;
       break;
-    case Scene::MirrorOnPosX:
-      mScene.mirror = back ? Scene::MirrorOnNegX : Scene::MirrorNone;
+    case Renderer::MirrorOnPosX:
+      mirror = back ? Renderer::MirrorOnNegX : Renderer::MirrorNone;
       break;
     default:
       assert("Invalid mirror value" && false);
@@ -243,31 +252,6 @@ bool EditorState::keyCallback(int key, int scancode, int action, int mods) {
     return true;
   }
   return false;
-}
-
-void EditorState::beginEdit(size_t idx) {
-  mEditing = true;
-  const Scene &scene = mApp.getScene();
-  assert(idx < scene.clouds.size());
-  mEditIndex = idx;
-  mEditMatrix = scene.clouds[idx].getMatrix();
-  mTransformations.clear();
-  mMultiEditing = false;
-}
-
-void EditorState::beginMultiEdit() {
-  auto &clouds = mApp.getScene().clouds;
-  mEditing = false;
-  mMultiEditing = true;
-  mMultiEditMatrices.clear();
-  for (size_t i : mSelected) {
-    assert(i < clouds.size());
-    // We need to force the point clouds to switch to the raw matrix.
-    glm::mat4 matrix = clouds[i].getMatrix();
-    mMultiEditMatrices.insert({i, matrix});
-    clouds[i].rawMatrix = true;
-  }
-  mTransformations.clear();
 }
 
 glm::mat4 EditorState::multiTransformUi() {
@@ -321,4 +305,37 @@ glm::mat4 EditorState::multiTransformUi() {
   }
 
   return matrix;
+}
+
+void EditorState::beginEdit(size_t idx) {
+  mEditing = true;
+  const Scene &scene = mApp.getScene();
+  assert(idx < scene.clouds.size());
+  mEditIndex = idx;
+  mEditMatrix = scene.clouds[idx].getMatrix();
+  mTransformations.clear();
+  mMultiEditing = false;
+}
+
+void EditorState::beginMultiEdit() {
+  auto &clouds = mApp.getScene().clouds;
+  mEditing = false;
+  mMultiEditing = true;
+  mMultiEditMatrices.clear();
+  for (size_t i : mSelected) {
+    assert(i < clouds.size());
+    // We need to force the point clouds to switch to the raw matrix.
+    glm::mat4 matrix = clouds[i].getMatrix();
+    mMultiEditMatrices.insert({i, matrix});
+    clouds[i].rawMatrix = true;
+  }
+  mTransformations.clear();
+}
+
+void EditorState::refreshBuffer() {
+  std::optional<double> voxelSize;
+  if (mVoxelDown && mVoxelSize > 0) {
+    voxelSize.emplace(mVoxelSize);
+  }
+  mApp.refreshBuffer(voxelSize);
 }

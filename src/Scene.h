@@ -12,67 +12,16 @@
 #include <utility>
 #include <vector>
 
-#include "glad/glad.h"
-
-#include "glm/glm.hpp"
-
-#include "nlohmann/json.hpp"
-
 #include "open3d/camera/PinholeCameraIntrinsic.h"
-#include "open3d/geometry/PointCloud.h"
-#include "open3d/geometry/RGBDImage.h"
 
+#include "PointCloud.h"
 #include "shaders.h"
-
-class Scene;
-
-class PointCloud {
-public:
-  PointCloud(const Scene &scene, const std::string &name, double trunc);
-  PointCloud(const Scene &scene, const nlohmann::json &j);
-
-  GLsizei getPoints(std::vector<float> &data,
-                    const double *voxelSize = nullptr) const;
-  glm::mat4 getMatrix() const;
-  nlohmann::json toJson() const;
-  void loadData(const Scene &scene);
-
-  const open3d::geometry::PointCloud &getPointCloud() const;
-  std::shared_ptr<open3d::geometry::PointCloud> getPointCloudCopy() const;
-
-  std::string name;
-  glm::vec3 translationPre;
-  glm::vec3 euler;
-  glm::vec3 translationPost;
-  glm::vec3 color;
-  glm::mat4 matrix;
-  bool rawMatrix;
-  bool hidden;
-  double trunc;
-
-private:
-  // Open3D uses shared_ptrs, but we throw when we create them they are nullptr.
-  // So, they will never be nullptr and you can dereference them without further
-  // checks.
-  std::shared_ptr<open3d::geometry::RGBDImage> mRGBD;
-  std::shared_ptr<open3d::geometry::PointCloud> mPointCloud;
-};
 
 class Scene {
 public:
-  enum Symmetry {
-    MirrorNone,
-    MirrorOnNegX,
-    MirrorOnPosX,
-    MirrorMax,
-  };
-
   static std::pair<std::unique_ptr<Scene>, std::vector<std::string>>
   load(const std::filesystem::path &dataDirectory);
   void save() const;
-
-  void refreshBuffer();
-  void render(const glm::mat4 &pv) const;
 
   const std::filesystem::path &getDataDirectory() const {
     return mDataDirectory;
@@ -86,23 +35,8 @@ public:
   openFrame(const std::filesystem::path &basename) const;
 
   std::vector<PointCloud> clouds;
-  bool paintUniform = false;
-  bool voxelDown = false;
-  double voxelSize = 0.01;
-  Symmetry mirror = MirrorNone;
 
 private:
-  struct RenderData {
-    GLuint vao = 0;
-    GLuint vbo = 0;
-    RenderData() = default;
-    RenderData(const RenderData &other) = delete;
-    RenderData(RenderData &&other) noexcept;
-    RenderData &operator=(const RenderData &other) = delete;
-    RenderData &operator=(RenderData &&other) noexcept;
-    ~RenderData();
-  };
-
   Scene() = default;
   Scene(const std::filesystem::path &dataDirectory,
         std::vector<std::string> &warnings);
@@ -113,15 +47,6 @@ private:
 
   open3d::camera::PinholeCameraIntrinsic mIntrinsic;
   double mDepthScale;
-
-  // We will create the shader each time we create a Scene instance.
-  // This is not optimal, but it is okay to do it for now, maybe we can do
-  // something better in the future.
-  ShaderProgram mShader;
-
-  std::vector<GLsizei> mNumPoints;
-
-  RenderData mRenderData;
 
   friend class PointCloud;
 };

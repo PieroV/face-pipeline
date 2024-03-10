@@ -14,6 +14,7 @@
 class EditorState : public AppState {
 public:
   EditorState(Application &app);
+  void start() override;
   void createGui() override;
   void render(const glm::mat4 &pv) override;
   bool keyCallback(int key, int scancode, int action, int mods) override;
@@ -27,9 +28,10 @@ private:
   void createMain();
   void createEdit();
   void createMultiEdit();
+  glm::mat4 multiTransformUi();
   void beginEdit(size_t idx);
   void beginMultiEdit();
-  glm::mat4 multiTransformUi();
+  void refreshBuffer();
 
   Application &mApp;
   Scene &mScene;
@@ -39,6 +41,10 @@ private:
   // predictable. In practice, the difference in performance will probably not
   // matter a lot.
   std::set<size_t> mSelected;
+
+  bool mPaintUniform = false;
+  bool mVoxelDown = false;
+  double mVoxelSize = 0.005;
 
   bool mEditing = false;
   size_t mEditIndex = 0;

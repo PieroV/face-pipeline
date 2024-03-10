@@ -13,6 +13,7 @@
 class AlignState : public AppState {
 public:
   AlignState(Application &app, size_t reference, size_t toAlign);
+  void start() override;
   void createGui() override;
   void render(const glm::mat4 &pv) override;
 
@@ -20,6 +21,7 @@ private:
   void runIcp();
   void voxelDown();
   void estimateNormals();
+  void refreshBuffer();
 
   Application &mApp;
 
@@ -29,6 +31,7 @@ private:
 
   double mVoxelSize = 0.005;
   open3d::geometry::KDTreeSearchParamKNN mNormalsParam;
+  bool mRenderVoxelized = false;
 
   std::shared_ptr<open3d::geometry::PointCloud> mReference;
   std::shared_ptr<open3d::geometry::PointCloud> mAlign;

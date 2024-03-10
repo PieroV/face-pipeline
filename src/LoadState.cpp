@@ -81,5 +81,6 @@ void LoadState::load() {
 }
 
 void LoadState::switchToEditor() {
+  mApp.setTitleDetails(mDirectory);
   mApp.setState(std::make_unique<EditorState>(mApp));
 }

@@ -19,21 +19,23 @@ using namespace open3d::pipelines::registration;
 
 AlignState::AlignState(Application &app, size_t reference, size_t toAlign)
     : mApp(app), mReferenceIndex(reference), mAlignIndex(toAlign) {
-  Scene &scene = app.getScene();
-  scene.paintUniform = true;
-  assert(reference < scene.clouds.size() && toAlign < scene.clouds.size());
-  mReference = scene.clouds[reference].getPointCloudCopy();
-  mAlign = scene.clouds[toAlign].getPointCloudCopy();
-  mOrigMatrix = scene.clouds[toAlign].getMatrix();
+  const auto &clouds = app.getScene().clouds;
+  assert(reference < clouds.size() && toAlign < clouds.size());
+  mReference = clouds[reference].getPointCloudCopy();
+  mAlign = clouds[toAlign].getPointCloudCopy();
+  mOrigMatrix = clouds[toAlign].getMatrix();
   assert(mReference && mAlign);
   estimateNormals();
 }
+
+void AlignState::start() { refreshBuffer(); }
 
 void AlignState::createGui() {
   Scene &scene = mApp.getScene();
   PointCloud &ref = scene.clouds[mReferenceIndex];
   PointCloud &align = scene.clouds[mAlignIndex];
 
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2(400, 120));
   ImGui::Begin("Align");
 
   ImGui::Text("Aligning: %zu - %s", mAlignIndex, align.name.c_str());
@@ -43,6 +45,7 @@ void AlignState::createGui() {
     mOrigMatrix = ref.matrix;
     std::swap(mReferenceIndex, mAlignIndex);
     std::swap(mReference, mAlign);
+    refreshBuffer();
   }
 
   ImGui::InputDouble("Voxel size", &mVoxelSize);
@@ -52,6 +55,9 @@ void AlignState::createGui() {
     voxelDown();
   }
   ImGui::EndDisabled();
+  if (ImGui::Checkbox("Render voxelized", &mRenderVoxelized)) {
+    refreshBuffer();
+  }
 
   ImGui::InputDouble("Maximum distance", &mMaxDistance);
   ImGui::InputInt("Maximum iterations", &mCriteria.max_iteration_);
@@ -78,12 +84,18 @@ void AlignState::createGui() {
   }
 
   ImGui::End();
+  ImGui::PopStyleVar();
 }
 
 void AlignState::render(const glm::mat4 &pv) {
-  // TODO: Make the renderer more generic, and render only the point cloud we
-  // are working with.
-  mApp.getScene().render(pv);
+  Renderer &r = mApp.getRenderer();
+  const auto &clouds = mApp.getScene().clouds;
+  r.beginRendering(pv);
+  r.renderPointCloud(0, clouds[mReferenceIndex].getMatrix(),
+                     clouds[mReferenceIndex].color);
+  r.renderPointCloud(1, clouds[mAlignIndex].getMatrix(),
+                     clouds[mAlignIndex].color);
+  r.endRendering();
 }
 
 void AlignState::runIcp() {
@@ -116,7 +128,7 @@ void AlignState::runIcp() {
       RegistrationICP(*mAlign, *mReference, mMaxDistance, init.cast<double>(),
                       TransformationEstimationPointToPlane(), mCriteria);
   // FIXME: Find a way to check if the matrix is valid, instead.
-  if (result.fitness_ > 0.1) {
+  if (result.fitness_ > 1e-5) {
     mLastResult = result;
     T = glm::make_mat4(mLastResult.transformation_.data());
     // TODO: Save any changes temporarily, and give a way to go accept the
@@ -141,10 +153,28 @@ void AlignState::voxelDown() {
   // results than estimating them when we have a lot of data and then averaging
   // when down sampling.
   estimateNormals();
+  if (mRenderVoxelized) {
+    refreshBuffer();
+  }
 }
 
 void AlignState::estimateNormals() {
   assert(mReference && mAlign);
   mReference->EstimateNormals(mNormalsParam);
   mAlign->EstimateNormals(mNormalsParam);
+}
+
+void AlignState::refreshBuffer() {
+  const auto &clouds = mApp.getScene().clouds;
+  Renderer &r = mApp.getRenderer();
+  r.mirror = Renderer::MirrorNone;
+  r.clearBuffer();
+  if (mRenderVoxelized) {
+    r.addPointCloud(*mReference);
+    r.addPointCloud(*mAlign);
+  } else {
+    r.addPointCloud(clouds[mReferenceIndex]);
+    r.addPointCloud(clouds[mAlignIndex]);
+  }
+  r.uploadBuffer();
 }
