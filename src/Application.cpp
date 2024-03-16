@@ -174,8 +174,15 @@ int Application::run(const char *dataDirectory) {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST);
 
-    glm::mat4 proj = glm::perspective(glm::radians(45.0f), (float)w / (float)h,
-                                      0.1f, 100.0f);
+    glm::mat4 proj;
+    float ratio = static_cast<float>(w) / h;
+    if (mPerspective) {
+      proj = glm::perspective(glm::radians(45.0f), ratio, 0.1f, 100.0f);
+    } else {
+      float hor = 2.0f;
+      float vert = hor / ratio;
+      proj = glm::ortho(-hor, hor, -vert, vert, 0.1f, 100.0f);
+    }
     // Eye at center simplifies the rotation.
     glm::mat4 view = mCamFrame * glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f),
                                              glm::vec3(0.0f, 2.0f, 0.0f),
@@ -200,6 +207,9 @@ void Application::keyCallback(int key, int scancode, int action, int mods) {
   }
   if (key == GLFW_KEY_R && action == GLFW_PRESS) {
     mCamFrame = glm::mat4(1.0f);
+  }
+  if (key == GLFW_KEY_P && action == GLFW_PRESS) {
+    mPerspective = !mPerspective;
   }
 }
 
@@ -258,7 +268,7 @@ void Application::mousePosCallback(double x, double y) {
   case MouseMovement::Pan: {
     const float sensitivity = 0.005f;
     // Our frame is in view space, Y is now the vertical axis.
-    // The translation happens just before the  projection, so we do not need to
+    // The translation happens just before the projection, so we do not need to
     // transform it in any way, we just update the values.
     mCamFrame[3][0] += dx * sensitivity;
     mCamFrame[3][1] -= dy * sensitivity;

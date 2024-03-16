@@ -18,6 +18,11 @@ public:
   void render(const glm::mat4 &pv) override;
 
 private:
+  void runMerge();
+  void createExportGui();
+  void createSymmetrizeGui();
+  double runSymmetrizePass(glm::dmat4 &matrix);
+
   Application &mApp;
   std::set<size_t> mIndices;
 
@@ -25,6 +30,12 @@ private:
   int mResolution = 500;
   double mSdfTrunc = 0.04;
   Eigen::Vector3f mOrigin;
+  glm::mat4 mMatrix;
+
+  bool mShowSymmetrize = false;
+  int mSymmIterations = 30;
+  double mSymmIcpThreshold = 0.01;
+  double mSymmAngleThreshold = 0.5;
 
   int mRenderMode = 0;
 

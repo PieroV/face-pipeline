@@ -78,6 +78,7 @@ private:
 
   glm::mat4 mCamFrame;
   MouseMovement mMouseCaptured = MouseMovement::None;
+  bool mPerspective = true;
 
   bool mImguiDemo = false;
 };
