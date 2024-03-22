@@ -7,6 +7,7 @@
 #pragma once
 
 #include <optional>
+#include <valarray>
 #include <vector>
 
 #include "glad/glad.h"
@@ -27,6 +28,8 @@ public:
     MirrorMax,
   };
 
+  using VertexMatrix = Eigen::Matrix<float, Eigen::Dynamic, 8, Eigen::RowMajor>;
+
   Renderer();
   Renderer(const Renderer &other) = delete;
   Renderer(Renderer &&other) = delete;
@@ -41,6 +44,8 @@ public:
                      std::optional<double> voxelSize = std::nullopt);
   void addPointCloud(const open3d::geometry::PointCloud &pcd);
   void addTriangleMesh(const open3d::geometry::TriangleMesh &mesh);
+  void addTriangleMesh(const VertexMatrix &vertices,
+                       const std::valarray<int> &indices);
   void uploadBuffer();
   void clearBuffer();
 
@@ -48,12 +53,25 @@ public:
   void
   renderPointCloud(size_t idx, const glm::mat4 &model,
                    std::optional<glm::vec3> uniformColor = std::nullopt) const;
-  void renderIndexedMesh(size_t idx, const glm::mat4 &model) const;
+  void renderIndexedMesh(size_t idx, const glm::mat4 &model,
+                         bool textured = false) const;
   void endRendering() const;
 
   Symmetry mirror = MirrorNone;
 
 private:
+  enum Uniforms : unsigned {
+    U_PV,
+    U_Model,
+    U_Mirror,
+    U_MirrorDraw,
+    U_PaintUniform,
+    U_UniformColor,
+    U_UseTexture,
+    U_Texture,
+    U_Max,
+  };
+  void addVertices(const VertexMatrix &vertices);
   void addPoints(const std::vector<Eigen::Vector3d> &points,
                  const std::vector<Eigen::Vector3d> &colors);
 
@@ -62,14 +80,9 @@ private:
   GLuint mEBO = 0;
 
   ShaderProgram mShader;
-  GLint mPvLoc;
-  GLint mModelLoc;
-  GLint mPaintUniformLoc;
-  GLint mUniformColorLoc;
-  GLint mMirrorLoc;
-  GLint mMirrorDrawLoc;
+  GLint mUniforms[U_Max];
 
-  std::vector<float> mBuffer;
+  VertexMatrix mBuffer;
   std::vector<GLsizei> mOffsets;
   std::vector<int> mIndices;
   std::vector<GLsizei> mIndexOffsets;

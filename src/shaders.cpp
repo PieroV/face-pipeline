@@ -13,11 +13,13 @@ static const char vertShader[] = R"THE_SHADER(
 #version 330 core
 layout (location = 0) in vec3 aPos;
 layout (location = 1) in vec3 aColor;
+layout (location = 2) in vec2 aTexPos;
 uniform mat4 pv;
 uniform mat4 model;
 uniform int mirror;
 uniform bool mirrorDraw;
 out vec3 pointColor;
+out vec2 texPos;
 
 #define MirrorNone 0
 #define MirrorOnNegX 1
@@ -52,6 +54,7 @@ void main() {
   }
 
   pointColor = aColor;
+  texPos = aTexPos;
 }
 )THE_SHADER";
 
@@ -59,13 +62,18 @@ static const char fragShader[] = R"THE_SHADER(
 #version 330 core
 uniform bool paintUniform;
 uniform vec3 uniformColor;
+uniform bool useTexture;
+uniform sampler2D theTexture;
 in vec3 pointColor;
+in vec2 texPos;
 out vec4 FragColor;
 
 void main()
 {
   if (paintUniform) {
     FragColor = vec4(uniformColor, 1.0f);
+  } else if (useTexture) {
+    FragColor = texture(theTexture, texPos);
   } else {
     FragColor = vec4(pointColor, 1.0f);
   }

@@ -14,37 +14,46 @@
 #include "open3d/geometry/TriangleMesh.h"
 
 // clang-format off
-static const float axes[] = {
-  0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
-  1.0, 0.0, 0.0, 1.0, 0.0, 0.0,
-  0.0, 0.0, 0.0, 0.0, 1.0, 0.0,
-  0.0, 1.0, 0.0, 0.0, 1.0, 0.0,
-  0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
-  0.0, 0.0, 1.0, 0.0, 0.0, 1.0,
+static const Eigen::Matrix<float, 6, 8, Eigen::RowMajor> axes {
+  {0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0},
+  {1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0},
+  {0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0},
+  {0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0},
+  {0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0},
+  {0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0},
 };
 // clang-format on
 
 Renderer::Renderer() : mShader(createShader()) {
-  mPvLoc = mShader.getUniformLocation("pv");
-  mModelLoc = mShader.getUniformLocation("model");
-  mPaintUniformLoc = mShader.getUniformLocation("paintUniform");
-  mUniformColorLoc = mShader.getUniformLocation("uniformColor");
-  mMirrorLoc = mShader.getUniformLocation("mirror");
-  mMirrorDrawLoc = mShader.getUniformLocation("mirrorDraw");
-  if (mPvLoc < 0 || mModelLoc < 0 || mPaintUniformLoc < 0 ||
-      mUniformColorLoc < 0 || mMirrorLoc < 0 || mMirrorDrawLoc < 0) {
-    throw std::runtime_error("Could not find a shader uniform.");
+  static const char *uniformNames[U_Max] = {
+      "pv",           "model",        "mirror",     "mirrorDraw",
+      "paintUniform", "uniformColor", "useTexture", "theTexture"};
+  for (size_t i = 0; i < U_Max; i++) {
+    mUniforms[i] = mShader.getUniformLocation(uniformNames[i]);
+    if (mUniforms[i] < 0) {
+      constexpr size_t len = 99;
+      char message[len + 1];
+      snprintf(message, len, "Cannot find the %s uniform.", uniformNames[i]);
+      message[len] = 0;
+      throw std::runtime_error(message);
+    }
   }
 
   glGenVertexArrays(1, &mVAO);
   glGenBuffers(1, &mVBO);
   glBindVertexArray(mVAO);
   glBindBuffer(GL_ARRAY_BUFFER, mVBO);
-  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), nullptr);
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE,
+                        mBuffer.cols() * sizeof(float), nullptr);
   glEnableVertexAttribArray(0);
-  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float),
+  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE,
+                        mBuffer.cols() * sizeof(float),
                         (void *)(3 * sizeof(float)));
   glEnableVertexAttribArray(1);
+  glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE,
+                        mBuffer.cols() * sizeof(float),
+                        (void *)(6 * sizeof(float)));
+  glEnableVertexAttribArray(2);
   glGenBuffers(1, &mEBO);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mEBO);
   glBindVertexArray(0);
@@ -75,19 +84,31 @@ void Renderer::addPointCloud(const PointCloud &pcd,
   }
 }
 
+void Renderer::addVertices(const VertexMatrix &vertices) {
+  Eigen::Index n = vertices.rows();
+  mBuffer.conservativeResize(mBuffer.rows() + n, Eigen::NoChange);
+  mBuffer.block(mBuffer.rows() - n, 0, n, mBuffer.cols()) = vertices;
+  mOffsets.push_back(static_cast<GLsizei>(mBuffer.rows()));
+}
+
 void Renderer::addPoints(const std::vector<Eigen::Vector3d> &points,
                          const std::vector<Eigen::Vector3d> &colors) {
+  using namespace Eigen;
   const size_t n = points.size();
   assert(colors.size() == n);
-  // Magic number: 6 floats for each point.
-  mBuffer.reserve(mBuffer.size() + n * 6);
-  for (size_t i = 0; i < n; i++) {
-    const Eigen::Vector3d &pos = points[i];
-    const Eigen::Vector3d &col = colors[i];
-    mBuffer.insert(mBuffer.end(), pos.data(), pos.data() + 3);
-    mBuffer.insert(mBuffer.end(), col.data(), col.data() + 3);
+  if (!n) {
+    // We access the first element.
+    return;
   }
-  mOffsets.push_back(static_cast<GLsizei>(mBuffer.size() / 6));
+
+  static_assert(sizeof(Vector3d) == 3 * sizeof(double),
+                "Cannot map Vector3d to 3 double");
+  Map<const Matrix<double, Dynamic, 3, RowMajor>> pos(points[0].data(), n, 3);
+  Map<const Matrix<double, Dynamic, 3, RowMajor>> col(colors[0].data(), n, 3);
+  Matrix<double, Dynamic, VertexMatrix::ColsAtCompileTime, RowMajor> vertices(
+      n, mBuffer.cols());
+  vertices << pos, col, MatrixXd::Zero(n, mBuffer.cols() - 6);
+  addVertices(vertices.cast<float>());
 }
 
 void Renderer::addPointCloud(const open3d::geometry::PointCloud &pcd) {
@@ -114,6 +135,17 @@ void Renderer::addTriangleMesh(const open3d::geometry::TriangleMesh &mesh) {
   mIndexOffsets.push_back(static_cast<GLsizei>(mIndices.size()));
 }
 
+void Renderer::addTriangleMesh(const VertexMatrix &vertices,
+                               const std::valarray<int> &indices) {
+  // Should we use C++20's ranges instead?
+  if (indices.max() >= vertices.rows()) {
+    throw std::invalid_argument("An index exceeds the number of vertices.");
+  }
+  addVertices(vertices);
+  mIndices.insert(mIndices.end(), std::begin(indices), std::end(indices));
+  mIndexOffsets.push_back(static_cast<GLsizei>(mIndices.size()));
+}
+
 void Renderer::uploadBuffer() {
   glBindVertexArray(mVAO);
   glBufferData(GL_ARRAY_BUFFER, mBuffer.size() * sizeof(float), mBuffer.data(),
@@ -126,9 +158,8 @@ void Renderer::uploadBuffer() {
 }
 
 void Renderer::clearBuffer() {
-  mBuffer.assign(axes, axes + sizeof(axes) / sizeof(*axes));
-  // 6 vertices already
-  mOffsets.assign({6});
+  mBuffer = axes;
+  mOffsets.assign({static_cast<GLsizei>(axes.rows())});
   mIndices.clear();
   // No indices used by the axes
   mIndexOffsets.assign({0});
@@ -136,42 +167,46 @@ void Renderer::clearBuffer() {
 
 void Renderer::beginRendering(const glm::mat4 &pv) const {
   mShader.use();
-  glUniformMatrix4fv(mPvLoc, 1, GL_FALSE, glm::value_ptr(pv));
+  glUniformMatrix4fv(mUniforms[U_PV], 1, GL_FALSE, glm::value_ptr(pv));
   glBindVertexArray(mVAO);
   glm::mat4 model(1.0f);
-  glUniformMatrix4fv(mModelLoc, 1, GL_FALSE, glm::value_ptr(model));
+  glUniformMatrix4fv(mUniforms[U_Model], 1, GL_FALSE, glm::value_ptr(model));
   // Axes are never painted in uniform and never subject to symmetry.
-  glUniform1i(mPaintUniformLoc, 0);
-  glUniform1i(mMirrorLoc, static_cast<int>(MirrorNone));
-  glUniform1i(mMirrorDrawLoc, 0);
-  glDrawArrays(GL_LINES, 0, 6);
+  glUniform1i(mUniforms[U_Mirror], static_cast<int>(MirrorNone));
+  glUniform1i(mUniforms[U_MirrorDraw], 0);
+  glUniform1i(mUniforms[U_PaintUniform], 0);
+  glUniform1i(mUniforms[U_UseTexture], 0);
+  glDrawArrays(GL_LINES, 0, axes.rows());
 }
 
 void Renderer::renderPointCloud(size_t idx, const glm::mat4 &model,
                                 std::optional<glm::vec3> uniformColor) const {
-  glUniformMatrix4fv(mModelLoc, 1, GL_FALSE, glm::value_ptr(model));
-  glUniform1i(mPaintUniformLoc, uniformColor ? 1 : 0);
+  glUniformMatrix4fv(mUniforms[U_Model], 1, GL_FALSE, glm::value_ptr(model));
+  glUniform1i(mUniforms[U_PaintUniform], uniformColor ? 1 : 0);
   if (uniformColor) {
-    glUniform3fv(mUniformColorLoc, 1, glm::value_ptr(*uniformColor));
+    glUniform3fv(mUniforms[U_UniformColor], 1, glm::value_ptr(*uniformColor));
   }
   // 0 are axes, so idx is actually idx + 1 here.
   GLsizei offset = mOffsets.at(idx);
   GLsizei count = mOffsets.at(idx + 1) - offset;
-  glUniform1i(mMirrorLoc, static_cast<int>(mirror));
+  glUniform1i(mUniforms[U_Mirror], static_cast<int>(mirror));
   glDrawArrays(GL_POINTS, offset, count);
   if (mirror != MirrorNone) {
     // Draw again, the shader will reverse the positions.
-    glUniform1i(mMirrorDrawLoc, 1);
+    glUniform1i(mUniforms[U_MirrorDraw], 1);
     glDrawArrays(GL_POINTS, offset, count);
-    glUniform1i(mMirrorDrawLoc, 0);
+    glUniform1i(mUniforms[U_MirrorDraw], 0);
   }
 }
 
-void Renderer::renderIndexedMesh(size_t idx, const glm::mat4 &model) const {
-  glUniformMatrix4fv(mModelLoc, 1, GL_FALSE, glm::value_ptr(model));
-  glUniform1i(mPaintUniformLoc, 0);
-  glUniform1i(mMirrorLoc, 0);
-  glUniform1i(mMirrorDrawLoc, 0);
+void Renderer::renderIndexedMesh(size_t idx, const glm::mat4 &model,
+                                 bool textured) const {
+  glUniformMatrix4fv(mUniforms[U_Model], 1, GL_FALSE, glm::value_ptr(model));
+  glUniform1i(mUniforms[U_PaintUniform], 0);
+  glUniform1i(mUniforms[U_Mirror], 0);
+  glUniform1i(mUniforms[U_MirrorDraw], 0);
+  glUniform1i(mUniforms[U_UseTexture], textured ? 1 : 0);
+  glUniform1i(mUniforms[U_Texture], 0);
   GLsizei offset = mIndexOffsets.at(idx);
   GLsizei count = mIndexOffsets.at(idx + 1) - offset;
   glDrawElementsBaseVertex(GL_TRIANGLES, count, GL_UNSIGNED_INT,
