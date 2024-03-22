@@ -197,6 +197,9 @@ int Application::run(const char *dataDirectory) {
 }
 
 void Application::keyCallback(int key, int scancode, int action, int mods) {
+  if (ImGui::GetIO().WantCaptureKeyboard) {
+    return;
+  }
   if (mCurrentState &&
       mCurrentState->keyCallback(key, scancode, action, mods)) {
     return;
@@ -210,6 +213,9 @@ void Application::keyCallback(int key, int scancode, int action, int mods) {
   }
   if (key == GLFW_KEY_P && action == GLFW_PRESS) {
     mPerspective = !mPerspective;
+  }
+  if (key == GLFW_KEY_Q && (mods & GLFW_MOD_CONTROL)) {
+    glfwSetWindowShouldClose(mWindow, GLFW_TRUE);
   }
 }
 
@@ -283,6 +289,9 @@ void Application::mousePosCallback(double x, double y) {
 
 void Application::mouseScrollCallback(double xoffset, double yoffset) {
   (void)xoffset;
+  if (ImGui::GetIO().WantCaptureMouse) {
+    return;
+  }
   const float sensitivity = 0.1f;
   // Same considerations as pan.
   mCamFrame[3][2] += static_cast<float>(yoffset) * sensitivity;
