@@ -95,9 +95,12 @@ void Renderer::addPoints(const std::vector<Eigen::Vector3d> &points,
                          const std::vector<Eigen::Vector3d> &colors) {
   using namespace Eigen;
   const size_t n = points.size();
+  // The caller should have already checked this.
   assert(colors.size() == n);
+  // We access the first element.
   if (!n) {
-    // We access the first element.
+    // Be coherent, and add the offset anyway.
+    mOffsets.push_back(static_cast<GLsizei>(mBuffer.rows()));
     return;
   }
 
@@ -118,6 +121,9 @@ void Renderer::addPointCloud(const open3d::geometry::PointCloud &pcd) {
 
 void Renderer::addTriangleMesh(const open3d::geometry::TriangleMesh &mesh) {
   if (mesh.triangles_.empty()) {
+    // We always add a new entry in the offsets.
+    mOffsets.push_back(static_cast<GLsizei>(mBuffer.rows()));
+    mIndexOffsets.push_back(static_cast<GLsizei>(mIndices.size()));
     return;
   }
 
@@ -136,17 +142,15 @@ void Renderer::addTriangleMesh(const open3d::geometry::TriangleMesh &mesh) {
 }
 
 void Renderer::addTriangleMesh(const VertexMatrix &vertices,
-                               const std::valarray<int> &indices) {
-  // Should we use C++20's ranges instead?
-  if (indices.max() >= vertices.rows()) {
-    throw std::invalid_argument("An index exceeds the number of vertices.");
-  }
+                               const std::vector<uint32_t> &indices) {
   addVertices(vertices);
-  mIndices.insert(mIndices.end(), std::begin(indices), std::end(indices));
+  // Should we use C++20's ranges instead?
+  mIndices.insert(mIndices.end(), indices.begin(), indices.end());
   mIndexOffsets.push_back(static_cast<GLsizei>(mIndices.size()));
 }
 
-void Renderer::uploadBuffer() {
+void Renderer::uploadBuffer() const {
+  assert(mOffsets.size() == mIndexOffsets.size());
   glBindVertexArray(mVAO);
   glBufferData(GL_ARRAY_BUFFER, mBuffer.size() * sizeof(float), mBuffer.data(),
                GL_STATIC_DRAW);
@@ -210,7 +214,7 @@ void Renderer::renderIndexedMesh(size_t idx, const glm::mat4 &model,
   GLsizei offset = mIndexOffsets.at(idx);
   GLsizei count = mIndexOffsets.at(idx + 1) - offset;
   glDrawElementsBaseVertex(GL_TRIANGLES, count, GL_UNSIGNED_INT,
-                           (void *)(uintptr_t)offset,
+                           (void *)(uintptr_t)(offset * sizeof(uint32_t)),
                            static_cast<GLint>(mOffsets.at(idx)));
 }
 

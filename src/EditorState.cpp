@@ -15,6 +15,7 @@
 #include "AddFrameState.h"
 #include "AlignState.h"
 #include "MergeState.h"
+#include "TextureLabState.h"
 #include "utilities.h"
 
 EditorState::EditorState(Application &app)
@@ -152,6 +153,9 @@ void EditorState::createMain() {
   ImGui::BeginDisabled(mSelected.empty());
   if (ImGui::Button("Merge")) {
     mApp.setState(std::make_unique<MergeState>(mApp, mSelected));
+  }
+  if (ImGui::Button("Texture lab")) {
+    mApp.setState(std::make_unique<TextureLabState>(mApp, mSelected));
   }
   ImGui::EndDisabled();
 

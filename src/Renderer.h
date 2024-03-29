@@ -7,7 +7,6 @@
 #pragma once
 
 #include <optional>
-#include <valarray>
 #include <vector>
 
 #include "glad/glad.h"
@@ -28,7 +27,20 @@ public:
     MirrorMax,
   };
 
-  using VertexMatrix = Eigen::Matrix<float, Eigen::Dynamic, 8, Eigen::RowMajor>;
+  enum VertexAttribute {
+    VA_X,
+    VA_Y,
+    VA_Z,
+    VA_R,
+    VA_G,
+    VA_B,
+    VA_U,
+    VA_V,
+    VA_MAX,
+  };
+
+  using VertexMatrix =
+      Eigen::Matrix<float, Eigen::Dynamic, VA_MAX, Eigen::RowMajor>;
 
   Renderer();
   Renderer(const Renderer &other) = delete;
@@ -45,15 +57,15 @@ public:
   void addPointCloud(const open3d::geometry::PointCloud &pcd);
   void addTriangleMesh(const open3d::geometry::TriangleMesh &mesh);
   void addTriangleMesh(const VertexMatrix &vertices,
-                       const std::valarray<int> &indices);
-  void uploadBuffer();
+                       const std::vector<uint32_t> &indices);
+  void uploadBuffer() const;
   void clearBuffer();
 
   void beginRendering(const glm::mat4 &pv) const;
   void
-  renderPointCloud(size_t idx, const glm::mat4 &model,
+  renderPointCloud(size_t idx, const glm::mat4 &model = glm::mat4(1.0f),
                    std::optional<glm::vec3> uniformColor = std::nullopt) const;
-  void renderIndexedMesh(size_t idx, const glm::mat4 &model,
+  void renderIndexedMesh(size_t idx, const glm::mat4 &model = glm::mat4(1.0f),
                          bool textured = false) const;
   void endRendering() const;
 
@@ -84,6 +96,6 @@ private:
 
   VertexMatrix mBuffer;
   std::vector<GLsizei> mOffsets;
-  std::vector<int> mIndices;
+  std::vector<uint32_t> mIndices;
   std::vector<GLsizei> mIndexOffsets;
 };
