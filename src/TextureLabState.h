@@ -15,6 +15,21 @@
 
 class TextureLabState : public AppState {
 public:
+  struct TextureData {
+    TextureData(const Scene &scene, size_t idx, bool useMask);
+    void updateTree(const Scene &scene, bool useMask);
+    std::optional<Eigen::Vector2f> findPointUv(const Eigen::Vector3d &point,
+                                               double radius) const;
+
+    size_t index;
+    std::string name;
+    Texture texture;
+    std::optional<open3d::geometry::KDTreeFlann> tree;
+    std::vector<Eigen::Vector2f> uv;
+    bool active = true;
+    GLsizei triangles = 0;
+  };
+
   TextureLabState(Application &app, const std::set<size_t> &indices);
   void start() override;
   void createGui() override;
@@ -22,20 +37,25 @@ public:
 
 private:
   void update();
-  void createTree();
-  void createMesh();
+  void fileModal(const char *title, const char *button, std::string &filename,
+                 const std::function<bool()> &func);
+  bool loadMesh();
+  bool saveMesh();
+  bool exportTexture();
 
   Application &mApp;
   open3d::geometry::TriangleMesh mMesh;
-  std::unique_ptr<open3d::geometry::KDTreeFlann> mTree;
-  std::vector<glm::vec2> mPointTextureMap;
-  std::vector<size_t> mIndices;
-  std::vector<Texture> mTextures;
-  size_t mCurrent = 0;
+
+  // unique_ptr is a workaround for the lack of copy constructor on Texture.
+  std::vector<std::unique_ptr<TextureData>> mTextures;
+  GLsizei mNotTextured = 0;
+
   double mRadius = 0.005;
   bool mUseMask = true;
-  std::string mMeshFilename;
+  Eigen::Vector3f mDefaultColor{0.0f, 0.0f, 0.0f};
   bool mHasMeshes = false;
-  size_t mVerticesWithUVs = 0;
-  size_t mTexturedTriangles = 0;
+  std::string mLoadFilename;
+  std::string mSaveFilename;
+  std::string mTextureFilename;
+  std::string mErrorDesc;
 };
