@@ -41,6 +41,7 @@ public:
 
   using VertexMatrix =
       Eigen::Matrix<float, Eigen::Dynamic, VA_MAX, Eigen::RowMajor>;
+  using Vertex = Eigen::Vector<float, VA_MAX>;
 
   Renderer();
   Renderer(const Renderer &other) = delete;
@@ -65,8 +66,10 @@ public:
   void
   renderPointCloud(size_t idx, const glm::mat4 &model = glm::mat4(1.0f),
                    std::optional<glm::vec3> uniformColor = std::nullopt) const;
-  void renderIndexedMesh(size_t idx, const glm::mat4 &model = glm::mat4(1.0f),
-                         bool textured = false) const;
+  void
+  renderIndexedMesh(size_t idx, const glm::mat4 &model = glm::mat4(1.0f),
+                    bool textured = false, GLsizei offset = 0,
+                    GLsizei count = std::numeric_limits<GLsizei>::max()) const;
   void endRendering() const;
 
   Symmetry mirror = MirrorNone;

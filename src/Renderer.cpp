@@ -204,18 +204,22 @@ void Renderer::renderPointCloud(size_t idx, const glm::mat4 &model,
 }
 
 void Renderer::renderIndexedMesh(size_t idx, const glm::mat4 &model,
-                                 bool textured) const {
+                                 bool textured, GLsizei offset,
+                                 GLsizei count) const {
   glUniformMatrix4fv(mUniforms[U_Model], 1, GL_FALSE, glm::value_ptr(model));
   glUniform1i(mUniforms[U_PaintUniform], 0);
   glUniform1i(mUniforms[U_Mirror], 0);
   glUniform1i(mUniforms[U_MirrorDraw], 0);
   glUniform1i(mUniforms[U_UseTexture], textured ? 1 : 0);
   glUniform1i(mUniforms[U_Texture], 0);
-  GLsizei offset = mIndexOffsets.at(idx);
-  GLsizei count = mIndexOffsets.at(idx + 1) - offset;
-  glDrawElementsBaseVertex(GL_TRIANGLES, count, GL_UNSIGNED_INT,
-                           (void *)(uintptr_t)(offset * sizeof(uint32_t)),
-                           static_cast<GLint>(mOffsets.at(idx)));
+  GLsizei start = mIndexOffsets.at(idx);
+  GLsizei maxCount = mIndexOffsets.at(idx + 1) - start;
+  offset = std::min(offset, maxCount);
+  count = std::min(count, maxCount - offset);
+  glDrawElementsBaseVertex(
+      GL_TRIANGLES, count, GL_UNSIGNED_INT,
+      (void *)(uintptr_t)((start + offset) * sizeof(uint32_t)),
+      static_cast<GLint>(mOffsets.at(idx)));
 }
 
 void Renderer::endRendering() const { glBindVertexArray(0); }
