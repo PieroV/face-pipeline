@@ -14,6 +14,7 @@
 
 #include "AddFrameState.h"
 #include "AlignState.h"
+#include "GlobalAlignState.h"
 #include "MergeState.h"
 #include "TextureLabState.h"
 #include "utilities.h"
@@ -147,6 +148,12 @@ void EditorState::createMain() {
     size_t a = *it++;
     size_t b = *it;
     mApp.setState(std::make_unique<AlignState>(mApp, a, b));
+  }
+  ImGui::EndDisabled();
+  ImGui::SameLine();
+  ImGui::BeginDisabled(mSelected.size() < 2);
+  if (ImGui::Button("Global align")) {
+    mApp.setState(std::make_unique<GlobalAlignState>(mApp, mSelected));
   }
   ImGui::EndDisabled();
 
