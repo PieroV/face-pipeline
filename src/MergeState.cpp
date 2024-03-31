@@ -21,7 +21,7 @@
 #include "EditorState.h"
 
 MergeState::MergeState(Application &app, const std::set<size_t> &indices)
-    : mApp(app), mIndices(indices), mOrigin(0.0, 0.0, 0.0), mMatrix(1.0f) {}
+    : mApp(app), mIndices(indices) {}
 
 void MergeState::start() {
   Renderer &r = mApp.getRenderer();

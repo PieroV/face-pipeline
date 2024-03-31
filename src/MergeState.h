@@ -29,8 +29,9 @@ private:
   double mLength = 2.0;
   int mResolution = 500;
   double mSdfTrunc = 0.04;
-  Eigen::Vector3f mOrigin;
-  glm::mat4 mMatrix;
+  // Shift by half of the default mLength for x and y.
+  Eigen::Vector3f mOrigin{-1.0f, -1.0f, 0.0f};
+  glm::mat4 mMatrix{1.0f};
 
   bool mShowSymmetrize = false;
   int mSymmIterations = 30;

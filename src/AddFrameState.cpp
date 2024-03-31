@@ -6,8 +6,6 @@
 
 #include "AddFrameState.h"
 
-#include <unordered_set>
-
 #include <cstdio>
 
 #include "imgui.h"
@@ -84,9 +82,8 @@ void AddFrameState::listFrames() {
     return;
   }
 
-  std::unordered_set<fs::path> alreadyUsed;
   for (const PointCloud &pcd : scene.clouds) {
-    alreadyUsed.insert(pcd.name);
+    mAlreadyUsed.insert(pcd.name);
   }
 
   for (const fs::directory_entry &entry : fs::directory_iterator(rgbPath)) {
@@ -98,9 +95,6 @@ void AddFrameState::listFrames() {
       continue;
     }
     name.replace_extension("");
-    if (alreadyUsed.count(name)) {
-      continue;
-    }
     fs::path maybeDepth = depthPath / name;
     maybeDepth.replace_extension(".png");
     if (fs::exists(maybeDepth)) {
@@ -176,9 +170,12 @@ void AddFrameState::showFrame() {
   if (ImGui::DragFloat("Truncate", &mTrunc, 0.01f, 0.0f, 20.0f)) {
     updateTexture();
   }
+  float width = std::max<float>(mWidth, ImGui::GetWindowWidth());
+  float ratio = static_cast<float>(mHeight) / mWidth;
+  float height = width * ratio;
   // Sigh. This is the official way of showing an image with ImGui.
   // https://github.com/ocornut/imgui/wiki/Image-Loading-and-Displaying-Examples#example-for-opengl-users
-  ImGui::Image((void *)(intptr_t)mTexture, ImVec2(mWidth, mHeight));
+  ImGui::Image((void *)(intptr_t)mTexture, ImVec2(width, height));
 
   std::string filename = mCurrentFrame->string();
   if (ImGui::InputText("Filename", &filename)) {
@@ -205,9 +202,12 @@ void AddFrameState::showFrame() {
   }
   ImGui::PopButtonRepeat();
 
-  if (ImGui::Button("Add", ImVec2(120, 0))) {
+  bool inScene = mAlreadyUsed.count(*mCurrentFrame);
+  ImGui::BeginDisabled(inScene);
+  if (ImGui::Button(inScene ? "Already added" : "Add", ImVec2(120, 0))) {
     Scene &scene = mApp.getScene();
     scene.clouds.emplace_back(scene, mCurrentFrame->string(), mTrunc);
+    mAlreadyUsed.insert(*mCurrentFrame);
     mApp.refreshBuffer();
     mCurrentFrame = mFrames.erase(mCurrentFrame);
     while (!mFrames.empty() && !updateTexture()) {
@@ -217,6 +217,7 @@ void AddFrameState::showFrame() {
     }
     // Do not go back to the editor, to allow adding multiple frames at once.
   }
+  ImGui::EndDisabled();
 }
 
 void AddFrameState::prevFrame() {

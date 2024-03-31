@@ -104,7 +104,6 @@ void Application::initImgui() {
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
   ImGuiIO &io = ImGui::GetIO();
-  io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
   io.IniFilename = nullptr;
   ImGui::StyleColorsLight();
   ImGui_ImplGlfw_InitForOpenGL(mWindow, true);

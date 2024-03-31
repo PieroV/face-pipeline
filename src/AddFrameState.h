@@ -11,6 +11,7 @@
 #include <functional>
 #include <set>
 #include <string>
+#include <unordered_set>
 
 class AddFrameState : public AppState {
 public:
@@ -39,6 +40,7 @@ private:
   Application &mApp;
   FrameSet mFrames;
   FrameSet::const_iterator mCurrentFrame;
+  std::unordered_set<std::filesystem::path> mAlreadyUsed;
 
   GLuint mTexture = 0;
   int mWidth;
