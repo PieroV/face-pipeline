@@ -16,6 +16,7 @@
 #include "AlignState.h"
 #include "GlobalAlignState.h"
 #include "MergeState.h"
+#include "ReorderState.h"
 #include "TextureLabState.h"
 #include "utilities.h"
 
@@ -168,6 +169,10 @@ void EditorState::createMain() {
 
   if (ImGui::Button("Add")) {
     mApp.setState(std::make_unique<AddFrameState>(mApp));
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("Reorder")) {
+    mApp.setState(std::make_unique<ReorderState>(mApp));
   }
 
   if (ImGui::Button("Save")) {

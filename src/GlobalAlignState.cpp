@@ -95,8 +95,7 @@ GlobalAlignState::voxelDown(size_t idx, double voxelSize,
       m = clouds[idx].getMatrix();
     }
     pcd->Transform(
-        Eigen::Map<const Eigen::Matrix4f>(glm::value_ptr(glm::inverse(*m)))
-            .cast<double>());
+        Eigen::Map<const Eigen::Matrix4f>(glm::value_ptr(*m)).cast<double>());
   }
   return pcd;
 }
