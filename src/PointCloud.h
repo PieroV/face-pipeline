@@ -23,6 +23,7 @@ public:
   PointCloud(const Scene &scene, const nlohmann::json &j);
 
   glm::mat4 getMatrix() const;
+  Eigen::Matrix4d getMatrixEigen() const;
   nlohmann::json toJson() const;
   void loadData(const Scene &scene);
 

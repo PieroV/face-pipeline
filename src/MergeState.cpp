@@ -15,6 +15,7 @@
 
 #include "open3d/io/PointCloudIO.h"
 #include "open3d/io/TriangleMeshIO.h"
+#include "open3d/pipelines/color_map/RigidOptimizer.h"
 
 #include "EditorState.h"
 #include "utilities.h"
@@ -88,6 +89,12 @@ void MergeState::createGui() {
       mShowSymmetrize = true;
     }
     ImGui::EndDisabled();
+    ImGui::SameLine();
+    ImGui::BeginDisabled(!mMesh || mInteractiveMerge);
+    if (ImGui::Button("Optimize colormap")) {
+      runColormapOptimizer();
+    }
+    ImGui::EndDisabled();
 
     createExportGui();
 
@@ -141,9 +148,7 @@ void MergeState::createVolume() {
 void MergeState::integrateFrame(size_t idx) {
   using namespace Eigen;
   const PointCloud &pcd = mApp.getScene().clouds.at(idx);
-  Matrix4d matrix =
-      Map<const Matrix4f>(glm::value_ptr(pcd.getMatrix())).cast<double>();
-  matrix = matrix.inverse().eval();
+  Matrix4d matrix = pcd.getMatrixEigen().inverse().eval();
   auto maybeMasked = pcd.getMaskedRgbd();
   assert(mVolume);
   mVolume->Integrate(maybeMasked ? *maybeMasked : pcd.getRgbdImage(),
@@ -156,8 +161,7 @@ void MergeState::alignFrame(size_t idx) {
   auto &clouds = mApp.getScene().clouds;
   assert(mPointCloud && idx < clouds.size());
   PointCloud &pcd = clouds[idx];
-  Matrix4d init =
-      Map<const Matrix4f>(glm::value_ptr(pcd.getMatrix())).cast<double>();
+  Matrix4d init = pcd.getMatrixEigen();
   RegistrationResult res =
       RegistrationICP(pcd.getPointCloud(), *mPointCloud, mIcpDistance, init,
                       TransformationEstimationPointToPlane(), mIcpCriteria);
@@ -174,13 +178,10 @@ void MergeState::updateGraphics() {
   if (mVolume) {
     mPointCloud = mVolume->ExtractPointCloud();
     mMesh = mVolume->ExtractTriangleMesh();
-    if (mPointCloud && mMesh) {
-      r.addPointCloud(*mPointCloud);
-      r.addTriangleMesh(*mMesh);
-    }
-  } else {
-    mPointCloud.reset();
-    mMesh.reset();
+  }
+  if (mPointCloud && mMesh) {
+    r.addPointCloud(*mPointCloud);
+    r.addTriangleMesh(*mMesh);
   }
   if (mInteractiveMerge && mInteractiveNextIdx < mIndices.size()) {
     const auto &clouds = mApp.getScene().clouds;
@@ -373,6 +374,30 @@ double MergeState::runSymmetrizePass(glm::dmat4 &matrix) {
   transformation[3] = translation;
   matrix = transformation * matrix;
   return angle;
+}
+
+void MergeState::runColormapOptimizer() {
+  using namespace Eigen;
+  using namespace open3d;
+  assert(mMesh);
+  camera::PinholeCameraTrajectory trajectory;
+  trajectory.parameters_.resize(mIndices.size());
+  std::vector<geometry::RGBDImage> images;
+  camera::PinholeCameraIntrinsic intr = mApp.getScene().getCameraIntrinsic();
+  const auto &clouds = mApp.getScene().clouds;
+  for (size_t i = 0; i < mIndices.size(); i++) {
+    const PointCloud &pcd = clouds[mIndices[i]];
+    images.push_back(pcd.hasMaskedRgbd() ? *pcd.getMaskedRgbd()
+                                         : pcd.getRgbdImage());
+    camera::PinholeCameraParameters &params = trajectory.parameters_[i];
+    params.intrinsic_ = intr;
+    params.extrinsic_ = pcd.getMatrixEigen().inverse().eval();
+  }
+  pipelines::color_map::RigidOptimizerOption options;
+  auto res = pipelines::color_map::RunRigidOptimizer(*mMesh, images, trajectory,
+                                                     options);
+  mMesh = std::make_shared<geometry::TriangleMesh>(std::move(res.first));
+  updateGraphics();
 }
 
 void MergeState::render(const glm::mat4 &pv) {

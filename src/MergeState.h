@@ -40,6 +40,7 @@ private:
   void createInteractiveGui();
   void createSymmetrizeGui();
   double runSymmetrizePass(glm::dmat4 &matrix);
+  void runColormapOptimizer();
 
   Application &mApp;
   std::vector<size_t> mIndices;

@@ -70,6 +70,11 @@ glm::mat4 PointCloud::getMatrix() const {
   return glm::translate(mtx, translationPre);
 }
 
+Eigen::Matrix4d PointCloud::getMatrixEigen() const {
+  return Eigen::Map<const Eigen::Matrix4f>(glm::value_ptr(getMatrix()))
+      .cast<double>();
+}
+
 void PointCloud::loadData(const Scene &scene) {
   auto [rgb, depth] = scene.openFrame(name);
   mRGBD = open3d::geometry::RGBDImage::CreateFromColorAndDepth(
