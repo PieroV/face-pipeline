@@ -53,12 +53,12 @@ public:
   Renderer &operator=(Renderer &&other) = delete;
   ~Renderer();
 
-  void addPointCloud(const PointCloud &pcd,
-                     std::optional<double> voxelSize = std::nullopt);
-  void addPointCloud(const open3d::geometry::PointCloud &pcd);
-  void addTriangleMesh(const open3d::geometry::TriangleMesh &mesh);
-  void addTriangleMesh(const VertexMatrix &vertices,
-                       const std::vector<uint32_t> &indices);
+  size_t addPointCloud(const PointCloud &pcd,
+                       std::optional<double> voxelSize = std::nullopt);
+  size_t addPointCloud(const open3d::geometry::PointCloud &pcd);
+  size_t addTriangleMesh(const open3d::geometry::TriangleMesh &mesh);
+  size_t addTriangleMesh(const VertexMatrix &vertices,
+                         const std::vector<uint32_t> &indices);
   void uploadBuffer() const;
   void clearBuffer();
 

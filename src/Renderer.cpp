@@ -71,8 +71,8 @@ Renderer::~Renderer() {
   mEBO = 0;
 }
 
-void Renderer::addPointCloud(const PointCloud &pcd,
-                             std::optional<double> voxelSize) {
+size_t Renderer::addPointCloud(const PointCloud &pcd,
+                               std::optional<double> voxelSize) {
   if (voxelSize) {
     auto downSampled = pcd.getPointCloud().VoxelDownSample(*voxelSize);
     if (!downSampled) {
@@ -82,6 +82,7 @@ void Renderer::addPointCloud(const PointCloud &pcd,
   } else {
     addPointCloud(pcd.getPointCloud());
   }
+  return mOffsets.size() - 2;
 }
 
 void Renderer::addVertices(const VertexMatrix &vertices) {
@@ -114,17 +115,19 @@ void Renderer::addPoints(const std::vector<Eigen::Vector3d> &points,
   addVertices(vertices.cast<float>());
 }
 
-void Renderer::addPointCloud(const open3d::geometry::PointCloud &pcd) {
+size_t Renderer::addPointCloud(const open3d::geometry::PointCloud &pcd) {
   addPoints(pcd.points_, pcd.colors_);
   mIndexOffsets.push_back(static_cast<GLsizei>(mIndices.size()));
+  return mOffsets.size() - 2;
 }
 
-void Renderer::addTriangleMesh(const open3d::geometry::TriangleMesh &mesh) {
+size_t Renderer::addTriangleMesh(const open3d::geometry::TriangleMesh &mesh) {
   if (mesh.triangles_.empty()) {
     // We always add a new entry in the offsets.
     mOffsets.push_back(static_cast<GLsizei>(mBuffer.rows()));
     mIndexOffsets.push_back(static_cast<GLsizei>(mIndices.size()));
-    return;
+    return mOffsets.size() - 2;
+    ;
   }
 
   if (mesh.vertex_colors_.size() != mesh.vertices_.size()) {
@@ -139,14 +142,17 @@ void Renderer::addTriangleMesh(const open3d::geometry::TriangleMesh &mesh) {
   mIndices.insert(mIndices.end(), triangles,
                   triangles + mesh.triangles_.size() * 3);
   mIndexOffsets.push_back(static_cast<GLsizei>(mIndices.size()));
+
+  return mOffsets.size() - 2;
 }
 
-void Renderer::addTriangleMesh(const VertexMatrix &vertices,
-                               const std::vector<uint32_t> &indices) {
+size_t Renderer::addTriangleMesh(const VertexMatrix &vertices,
+                                 const std::vector<uint32_t> &indices) {
   addVertices(vertices);
   // Should we use C++20's ranges instead?
   mIndices.insert(mIndices.end(), indices.begin(), indices.end());
   mIndexOffsets.push_back(static_cast<GLsizei>(mIndices.size()));
+  return mOffsets.size() - 2;
 }
 
 void Renderer::uploadBuffer() const {

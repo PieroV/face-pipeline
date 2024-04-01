@@ -15,13 +15,15 @@
 
 #include "open3d/io/PointCloudIO.h"
 #include "open3d/io/TriangleMeshIO.h"
-#include "open3d/pipelines/integration/UniformTSDFVolume.h"
-#include "open3d/pipelines/registration/Registration.h"
 
 #include "EditorState.h"
 
 MergeState::MergeState(Application &app, const std::set<size_t> &indices)
-    : mApp(app), mIndices(indices) {}
+    : mApp(app), mIndices(indices.begin(), indices.end()) {
+  if (indices.empty()) {
+    throw std::invalid_argument("Indices cannot be empty.");
+  }
+}
 
 void MergeState::start() {
   Renderer &r = mApp.getRenderer();
@@ -30,6 +32,7 @@ void MergeState::start() {
 
 void MergeState::createGui() {
   if (ImGui::Begin("Merge")) {
+    ImGui::BeginDisabled(mInteractiveMerge);
     ImGui::InputDouble("Length", &mLength);
     ImGui::InputInt("Resolution", &mResolution);
     double memory = pow(mResolution, 3) * sizeof(open3d::geometry::TSDFVoxel);
@@ -52,8 +55,16 @@ void MergeState::createGui() {
     if (ImGui::Button("Merge")) {
       runMerge();
     }
+    ImGui::SameLine();
+    if (ImGui::Button("Interactive merge")) {
+      mInteractiveMerge = true;
+      mInteractiveNextIdx = 0;
+      createVolume();
+      integrateNext();
+    }
+    ImGui::EndDisabled();
 
-    ImGui::BeginDisabled(!mPointCloud);
+    ImGui::BeginDisabled(!mPointCloud || mInteractiveMerge);
     if (ImGui::Button("Symmetrize")) {
       mShowSymmetrize = true;
     }
@@ -61,7 +72,9 @@ void MergeState::createGui() {
 
     createExportGui();
 
-    static const char *symLabels[] = {"Point cloud", "Mesh", "Mesh wireframe"};
+    static const char *symLabels[RM_Max] = {"Point cloud", "Mesh",
+                                            "Mesh wireframe"};
+    assert(mRenderMode < RM_Max);
     if (ImGui::BeginCombo("Render mode", symLabels[mRenderMode])) {
       for (int i = 0; i < 3; i++) {
         bool isSelected = (mRenderMode == i);
@@ -81,38 +94,68 @@ void MergeState::createGui() {
   }
   ImGui::End();
 
+  createInteractiveGui();
   createSymmetrizeGui();
 }
 
 void MergeState::runMerge() {
-  using namespace Eigen;
-  using namespace open3d::pipelines::integration;
-
-  const Scene &scene = mApp.getScene();
-  const auto &intrinsic = scene.getCameraIntrinsic();
-  const auto &clouds = scene.clouds;
-
-  UniformTSDFVolume volume(mLength, mResolution, mSdfTrunc,
-                           TSDFVolumeColorType::RGB8, mOrigin.cast<double>());
+  createVolume();
   for (size_t idx : mIndices) {
-    const PointCloud &pcd = clouds.at(idx);
-    Matrix4d matrix =
-        Map<const Matrix4f>(glm::value_ptr(pcd.getMatrix())).cast<double>();
-    matrix = matrix.inverse().eval();
-    auto maybeMasked = pcd.getMaskedRgbd();
-    volume.Integrate(maybeMasked ? *maybeMasked : pcd.getRgbdImage(), intrinsic,
-                     matrix);
+    integrateFrame(idx);
   }
-  mPointCloud = volume.ExtractPointCloud();
-  mMesh = volume.ExtractTriangleMesh();
-  if (mPointCloud && mMesh) {
-    // TODO: Signal the error otherwise.
-    Renderer &r = mApp.getRenderer();
-    r.clearBuffer();
-    r.addPointCloud(*mPointCloud);
-    r.addTriangleMesh(*mMesh);
-    r.uploadBuffer();
+  updateGraphics();
+  mVolume.reset();
+}
+
+void MergeState::createVolume() {
+  mVolume.emplace(mLength, mResolution, mSdfTrunc,
+                  open3d::pipelines::integration::TSDFVolumeColorType::RGB8,
+                  mOrigin.cast<double>());
+}
+
+void MergeState::integrateFrame(size_t idx) {
+  using namespace Eigen;
+  const PointCloud &pcd = mApp.getScene().clouds.at(idx);
+  Matrix4d matrix =
+      Map<const Matrix4f>(glm::value_ptr(pcd.getMatrix())).cast<double>();
+  matrix = matrix.inverse().eval();
+  auto maybeMasked = pcd.getMaskedRgbd();
+  assert(mVolume);
+  mVolume->Integrate(maybeMasked ? *maybeMasked : pcd.getRgbdImage(),
+                     mApp.getScene().getCameraIntrinsic(), matrix);
+}
+
+void MergeState::updateGraphics() {
+  Renderer &r = mApp.getRenderer();
+  r.clearBuffer();
+  if (mVolume) {
+    mPointCloud = mVolume->ExtractPointCloud();
+    mMesh = mVolume->ExtractTriangleMesh();
+    if (mPointCloud && mMesh) {
+      r.addPointCloud(*mPointCloud);
+      r.addTriangleMesh(*mMesh);
+    }
+  } else {
+    mPointCloud.reset();
+    mMesh.reset();
   }
+  if (mInteractiveMerge && mInteractiveNextIdx < mIndices.size()) {
+    const auto &clouds = mApp.getScene().clouds;
+    assert(mIndices[mInteractiveNextIdx] < clouds.size());
+    mTempCloud =
+        r.addPointCloud(clouds[mIndices[mInteractiveNextIdx]].getPointCloud());
+  } else {
+    mTempCloud = std::numeric_limits<size_t>::max();
+  }
+  r.uploadBuffer();
+}
+
+void MergeState::integrateNext() {
+  assert(mVolume);
+  integrateFrame(mIndices[mInteractiveNextIdx++]);
+  mPointCloud = mVolume->ExtractPointCloud();
+  mMesh = mVolume->ExtractTriangleMesh();
+  updateGraphics();
 }
 
 void MergeState::createExportGui() {
@@ -155,6 +198,60 @@ void MergeState::createExportGui() {
       ImGui::CloseCurrentPopup();
     }
     ImGui::EndPopup();
+  }
+}
+
+void MergeState::createInteractiveGui() {
+  if (!mInteractiveMerge) {
+    return;
+  }
+  if (ImGui::Begin("Interactive merge", &mInteractiveMerge)) {
+    ImGui::Text("Merged %zu/%zu", mInteractiveNextIdx, mIndices.size());
+
+    bool hasNext = mInteractiveNextIdx < mIndices.size();
+    PointCloud *next =
+        hasNext ? &mApp.getScene().clouds[mIndices[mInteractiveNextIdx]]
+                : nullptr;
+    if (hasNext) {
+      ImGui::Text("Showing: %s", next->name.c_str());
+    } else {
+      ImGui::Text("All frames integrated");
+    }
+
+    ImGui::BeginDisabled(!hasNext || !mPointCloud);
+    ImGui::InputDouble("Maximum distance", &mIcpDistance);
+    ImGui::InputInt("Maximum iterations", &mIcpCriteria.max_iteration_);
+    if (ImGui::Button("Align")) {
+      using namespace open3d::pipelines::registration;
+      Eigen::Matrix4d init =
+          Eigen::Map<const Eigen::Matrix4f>(glm::value_ptr(next->getMatrix()))
+              .cast<double>();
+      RegistrationResult res = RegistrationICP(
+          next->getPointCloud(), *mPointCloud, mIcpDistance, init,
+          TransformationEstimationPointToPlane(), mIcpCriteria);
+      next->matrix = glm::make_mat4(res.transformation_.data());
+      next->rawMatrix = true;
+    }
+    ImGui::EndDisabled();
+
+    ImGui::BeginDisabled(!hasNext);
+    if (ImGui::Button("Merge")) {
+      integrateNext();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Skip")) {
+      mInteractiveNextIdx++;
+      updateGraphics();
+    }
+    ImGui::EndDisabled();
+
+    if (ImGui::Button("Close")) {
+      mInteractiveMerge = false;
+    }
+  }
+  ImGui::End();
+  if (!mInteractiveMerge) {
+    mVolume.reset();
   }
 }
 
@@ -240,22 +337,26 @@ double MergeState::runSymmetrizePass(glm::dmat4 &matrix) {
 }
 
 void MergeState::render(const glm::mat4 &pv) {
-  if (!mPointCloud || !mMesh) {
-    return;
-  }
-
   Renderer &r = mApp.getRenderer();
   r.beginRendering(pv);
-  if (mRenderMode == 1 || mRenderMode == 2) {
+  if (mMesh && (mRenderMode == RM_Mesh || mRenderMode == RM_Wireframe)) {
     GLint polygonMode;
     glGetIntegerv(GL_POLYGON_MODE, &polygonMode);
-    if (mRenderMode == 2) {
+    if (mRenderMode == RM_Wireframe) {
       glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     }
     r.renderIndexedMesh(1, mMatrix);
     glPolygonMode(GL_FRONT_AND_BACK, polygonMode);
-  } else {
+  } else if (mPointCloud) {
     r.renderPointCloud(0, mMatrix);
   }
+
+  const auto &clouds = mApp.getScene().clouds;
+  if (mInteractiveMerge && mInteractiveNextIdx < mIndices.size()) {
+    assert(mTempCloud != std::numeric_limits<size_t>::max());
+    const PointCloud &cloud = clouds[mIndices[mInteractiveNextIdx]];
+    r.renderPointCloud(mTempCloud, cloud.getMatrix(), cloud.color);
+  }
+
   r.endRendering();
 }
