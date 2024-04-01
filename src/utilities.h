@@ -6,8 +6,11 @@
 
 #pragma once
 
+#include <random>
+
 #include "glm/glm.hpp"
 
 void initRng();
+std::mt19937 &getRng();
 
 glm::vec3 randomColor();

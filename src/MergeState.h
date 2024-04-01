@@ -32,6 +32,7 @@ private:
   void runMerge();
   void createVolume();
   void integrateFrame(size_t idx);
+  void alignFrame(size_t idx);
   void updateGraphics();
   void integrateNext();
 
@@ -52,9 +53,13 @@ private:
 
   double mIcpDistance = 0.01;
   open3d::pipelines::registration::ICPConvergenceCriteria mIcpCriteria;
+  double mIcpMinFitness = 0.5;
+  double mIcpLastFitness = 0;
+  bool mAlignBeforeMerge = false;
 
   bool mInteractiveMerge = false;
   size_t mInteractiveNextIdx = 0;
+  bool mShowFitness = false;
 
   bool mShowSymmetrize = false;
   int mSymmIterations = 30;

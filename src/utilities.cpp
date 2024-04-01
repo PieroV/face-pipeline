@@ -6,14 +6,14 @@
 
 #include "utilities.h"
 
-#include <random>
-
 std::mt19937 rng;
 
 void initRng() {
   std::random_device rd;
   rng.seed(rd());
 }
+
+std::mt19937 &getRng() { return rng; }
 
 glm::vec3 randomColor() {
   std::uniform_int_distribution<int> colorDist(0, 2);

@@ -17,6 +17,7 @@
 #include "open3d/io/TriangleMeshIO.h"
 
 #include "EditorState.h"
+#include "utilities.h"
 
 MergeState::MergeState(Application &app, const std::set<size_t> &indices)
     : mApp(app), mIndices(indices.begin(), indices.end()) {
@@ -51,7 +52,19 @@ void MergeState::createGui() {
     ImGui::Text("Voxel size: %f", mLength / mResolution);
     ImGui::InputDouble("SDF truncation value", &mSdfTrunc);
     ImGui::InputFloat3("Origin", mOrigin.data());
+    ImGui::Checkbox("Align frames before merging", &mAlignBeforeMerge);
+    ImGui::EndDisabled();
 
+    ImGui::InputDouble("Align maximum distance", &mIcpDistance);
+    ImGui::InputInt("Align maximum iterations", &mIcpCriteria.max_iteration_);
+    ImGui::InputDouble("Align minimum fitness", &mIcpMinFitness);
+
+    ImGui::BeginDisabled(mInteractiveMerge);
+    if (ImGui::Button("Shuffle inputs")) {
+      // We take for granted the first first frame is more or less the desired
+      // final alignment, so we never move it.
+      std::shuffle(mIndices.begin() + 1, mIndices.end(), getRng());
+    }
     if (ImGui::Button("Merge")) {
       runMerge();
     }
@@ -65,6 +78,12 @@ void MergeState::createGui() {
     ImGui::EndDisabled();
 
     ImGui::BeginDisabled(!mPointCloud || mInteractiveMerge);
+    if (ImGui::Button("Align frames to the result")) {
+      for (size_t idx : mIndices) {
+        alignFrame(idx);
+      }
+    }
+    ImGui::SameLine();
     if (ImGui::Button("Symmetrize")) {
       mShowSymmetrize = true;
     }
@@ -99,9 +118,15 @@ void MergeState::createGui() {
 }
 
 void MergeState::runMerge() {
+  assert(!mIndices.empty());
   createVolume();
-  for (size_t idx : mIndices) {
-    integrateFrame(idx);
+  integrateFrame(mIndices[0]);
+  for (size_t i = 1; i < mIndices.size(); i++) {
+    if (mAlignBeforeMerge) {
+      mPointCloud = mVolume->ExtractPointCloud();
+      alignFrame(mIndices[i]);
+    }
+    integrateFrame(mIndices[i]);
   }
   updateGraphics();
   mVolume.reset();
@@ -123,6 +148,24 @@ void MergeState::integrateFrame(size_t idx) {
   assert(mVolume);
   mVolume->Integrate(maybeMasked ? *maybeMasked : pcd.getRgbdImage(),
                      mApp.getScene().getCameraIntrinsic(), matrix);
+}
+
+void MergeState::alignFrame(size_t idx) {
+  using namespace Eigen;
+  using namespace open3d::pipelines::registration;
+  auto &clouds = mApp.getScene().clouds;
+  assert(mPointCloud && idx < clouds.size());
+  PointCloud &pcd = clouds[idx];
+  Matrix4d init =
+      Map<const Matrix4f>(glm::value_ptr(pcd.getMatrix())).cast<double>();
+  RegistrationResult res =
+      RegistrationICP(pcd.getPointCloud(), *mPointCloud, mIcpDistance, init,
+                      TransformationEstimationPointToPlane(), mIcpCriteria);
+  mIcpLastFitness = res.fitness_;
+  if (mIcpLastFitness >= mIcpMinFitness) {
+    pcd.matrix = glm::make_mat4(res.transformation_.data());
+    pcd.rawMatrix = true;
+  }
 }
 
 void MergeState::updateGraphics() {
@@ -209,39 +252,34 @@ void MergeState::createInteractiveGui() {
     ImGui::Text("Merged %zu/%zu", mInteractiveNextIdx, mIndices.size());
 
     bool hasNext = mInteractiveNextIdx < mIndices.size();
-    PointCloud *next =
-        hasNext ? &mApp.getScene().clouds[mIndices[mInteractiveNextIdx]]
-                : nullptr;
     if (hasNext) {
-      ImGui::Text("Showing: %s", next->name.c_str());
+      ImGui::Text(
+          "Showing: %s",
+          mApp.getScene().clouds[mIndices[mInteractiveNextIdx]].name.c_str());
     } else {
       ImGui::Text("All frames integrated");
     }
 
     ImGui::BeginDisabled(!hasNext || !mPointCloud);
-    ImGui::InputDouble("Maximum distance", &mIcpDistance);
-    ImGui::InputInt("Maximum iterations", &mIcpCriteria.max_iteration_);
     if (ImGui::Button("Align")) {
-      using namespace open3d::pipelines::registration;
-      Eigen::Matrix4d init =
-          Eigen::Map<const Eigen::Matrix4f>(glm::value_ptr(next->getMatrix()))
-              .cast<double>();
-      RegistrationResult res = RegistrationICP(
-          next->getPointCloud(), *mPointCloud, mIcpDistance, init,
-          TransformationEstimationPointToPlane(), mIcpCriteria);
-      next->matrix = glm::make_mat4(res.transformation_.data());
-      next->rawMatrix = true;
+      alignFrame(mIndices[mInteractiveNextIdx]);
+      mShowFitness = true;
     }
     ImGui::EndDisabled();
+    if (mShowFitness) {
+      ImGui::Text("Alignment fitness: %f", mIcpLastFitness);
+    }
 
     ImGui::BeginDisabled(!hasNext);
     if (ImGui::Button("Merge")) {
       integrateNext();
+      mShowFitness = false;
     }
     ImGui::SameLine();
     if (ImGui::Button("Skip")) {
       mInteractiveNextIdx++;
       updateGraphics();
+      mShowFitness = false;
     }
     ImGui::EndDisabled();
 
@@ -252,6 +290,7 @@ void MergeState::createInteractiveGui() {
   ImGui::End();
   if (!mInteractiveMerge) {
     mVolume.reset();
+    mShowFitness = false;
   }
 }
 
