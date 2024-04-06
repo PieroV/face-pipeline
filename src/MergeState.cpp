@@ -162,9 +162,9 @@ void MergeState::alignFrame(size_t idx) {
   assert(mPointCloud && idx < clouds.size());
   PointCloud &pcd = clouds[idx];
   Matrix4d init = pcd.getMatrixEigen();
-  RegistrationResult res =
-      RegistrationICP(pcd.getPointCloud(), *mPointCloud, mIcpDistance, init,
-                      TransformationEstimationPointToPlane(), mIcpCriteria);
+  RegistrationResult res = RegistrationICP(
+      pcd.getMaskedPointCloud(), *mPointCloud, mIcpDistance, init,
+      TransformationEstimationPointToPlane(), mIcpCriteria);
   mIcpLastFitness = res.fitness_;
   if (mIcpLastFitness >= mIcpMinFitness) {
     pcd.matrix = glm::make_mat4(res.transformation_.data());
@@ -186,8 +186,8 @@ void MergeState::updateGraphics() {
   if (mInteractiveMerge && mInteractiveNextIdx < mIndices.size()) {
     const auto &clouds = mApp.getScene().clouds;
     assert(mIndices[mInteractiveNextIdx] < clouds.size());
-    mTempCloud =
-        r.addPointCloud(clouds[mIndices[mInteractiveNextIdx]].getPointCloud());
+    mTempCloud = r.addPointCloud(
+        clouds[mIndices[mInteractiveNextIdx]].getMaskedPointCloud());
   } else {
     mTempCloud = std::numeric_limits<size_t>::max();
   }

@@ -32,6 +32,8 @@ public:
   const open3d::geometry::RGBDImage &getRgbdImage() const;
   std::shared_ptr<const open3d::geometry::RGBDImage> getMaskedRgbd() const;
   bool hasMaskedRgbd() const { return static_cast<bool>(mMaskedRgbd); }
+  const open3d::geometry::PointCloud &
+  getMaskedPointCloud(bool allowFallback = true) const;
 
   std::string name;
   glm::vec3 translationPre;
@@ -52,4 +54,5 @@ private:
   std::shared_ptr<open3d::geometry::RGBDImage> mRGBD;
   std::shared_ptr<open3d::geometry::PointCloud> mPointCloud;
   std::shared_ptr<open3d::geometry::RGBDImage> mMaskedRgbd;
+  std::shared_ptr<open3d::geometry::PointCloud> mMaskedCloud;
 };

@@ -138,6 +138,8 @@ void PointCloud::makeMasked(const Scene &scene) {
       *depthPtr = 0;
     }
   }
+  mMaskedCloud = open3d::geometry::PointCloud::CreateFromRGBDImage(
+      *mMaskedRgbd, scene.getCameraIntrinsic());
 }
 
 json PointCloud::toJson() const {
@@ -173,4 +175,12 @@ std::shared_ptr<const open3d::geometry::RGBDImage>
 PointCloud::getMaskedRgbd() const {
   return std::const_pointer_cast<const open3d::geometry::RGBDImage>(
       mMaskedRgbd);
+}
+
+const open3d::geometry::PointCloud &
+PointCloud::getMaskedPointCloud(bool allowFallback) const {
+  if (!mMaskedCloud && !allowFallback) {
+    throw std::runtime_error("We don't have a masked cloud.");
+  }
+  return mMaskedCloud ? *mMaskedCloud : *mPointCloud;
 }
