@@ -4,13 +4,12 @@
  * worldwide. This software is distributed without any warranty.
  */
 
-#include "Application.h"
-
 #include <set>
 
 #include "open3d/geometry/KDTreeFlann.h"
 #include "open3d/geometry/TriangleMesh.h"
 
+#include "Application.h"
 #include "Texture.h"
 
 class TextureLabState : public AppState {

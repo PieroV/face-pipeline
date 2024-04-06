@@ -34,6 +34,15 @@ public:
   std::pair<open3d::geometry::Image, open3d::geometry::Image>
   openFrame(const std::filesystem::path &basename) const;
 
+  std::pair<std::vector<Eigen::Vector3d>,
+            std::vector<Eigen::Vector2<unsigned int>>>
+  unprojectDepth(
+      const open3d::geometry::Image &depth,
+      const Eigen::Matrix4d &transform = Eigen::Matrix4d::Identity()) const;
+  std::pair<std::vector<Eigen::Vector3d>,
+            std::vector<Eigen::Vector2<unsigned int>>>
+  unprojectDepth(const PointCloud &pcd, bool useMask = true) const;
+
   std::vector<PointCloud> clouds;
 
 private:
@@ -47,6 +56,4 @@ private:
 
   open3d::camera::PinholeCameraIntrinsic mIntrinsic;
   double mDepthScale;
-
-  friend class PointCloud;
 };

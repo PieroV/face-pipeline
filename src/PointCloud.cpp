@@ -78,13 +78,13 @@ Eigen::Matrix4d PointCloud::getMatrixEigen() const {
 void PointCloud::loadData(const Scene &scene) {
   auto [rgb, depth] = scene.openFrame(name);
   mRGBD = open3d::geometry::RGBDImage::CreateFromColorAndDepth(
-      rgb, depth, 1.0 / scene.mDepthScale, trunc, false);
+      rgb, depth, 1.0 / scene.getDepthScale(), trunc, false);
   if (!mRGBD) {
     throw std::runtime_error("Failed to create the RGBD image");
   }
   makeMasked(scene);
   mPointCloud = open3d::geometry::PointCloud::CreateFromRGBDImage(
-      *mRGBD, scene.mIntrinsic);
+      *mRGBD, scene.getCameraIntrinsic());
   if (!mPointCloud) {
     throw std::runtime_error("Failed to create the point cloud");
   }

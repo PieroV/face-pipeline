@@ -16,6 +16,7 @@
 #include "AlignState.h"
 #include "GlobalAlignState.h"
 #include "MergeState.h"
+#include "NoiseRemovalState.h"
 #include "ReorderState.h"
 #include "TextureLabState.h"
 #include "utilities.h"
@@ -41,12 +42,13 @@ void EditorState::createMain() {
 
   ImGui::Begin("Main");
 
-  if (ImGui::BeginTable("clouds-table", 5)) {
+  if (ImGui::BeginTable("clouds-table", 6)) {
     ImGui::TableSetupColumn("Select", ImGuiTableColumnFlags_WidthFixed);
     ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
     ImGui::TableSetupColumn("Edit", ImGuiTableColumnFlags_WidthFixed);
     ImGui::TableSetupColumn("Delete", ImGuiTableColumnFlags_WidthFixed);
     ImGui::TableSetupColumn("Hide", ImGuiTableColumnFlags_WidthFixed);
+    ImGui::TableSetupColumn("Remove noise", ImGuiTableColumnFlags_WidthFixed);
     for (size_t i = 0; i < clouds.size(); i++) {
       ImGui::TableNextColumn();
       // Since we have an ordered set we could do something smart with an
@@ -88,6 +90,11 @@ void EditorState::createMain() {
       ImGui::TableNextColumn();
       snprintf(id, sizeof(id), "Hidden##%zu", i);
       ImGui::Checkbox(id, &clouds[i].hidden);
+      ImGui::TableNextColumn();
+      snprintf(id, sizeof(id), "Remove noise##%zu", i);
+      if (ImGui::Button(id)) {
+        mApp.setState(std::make_unique<NoiseRemovalState>(mApp, clouds[i]));
+      }
     }
     ImGui::EndTable();
   }

@@ -322,49 +322,29 @@ TextureLabState::TextureData::TextureData(const Scene &scene, size_t idx,
 
 void TextureLabState::TextureData::updateTree(const Scene &scene,
                                               bool useMask) {
+  using namespace Eigen;
   tree.reset();
   uv.clear();
   const PointCloud &pcd = scene.clouds.at(index);
 
-  const open3d::camera::PinholeCameraIntrinsic &camera =
-      scene.getCameraIntrinsic();
-  glm::dvec2 principal(camera.GetPrincipalPoint().first,
-                       camera.GetPrincipalPoint().second);
-  glm::dvec2 focal(camera.GetFocalLength().first,
-                   camera.GetFocalLength().second);
-  glm::vec2 size(camera.width_, camera.height_);
-
-  glm::dmat4 matrix = pcd.getMatrix();
-
   // We need to project the point on our own because we want to keep the
   // association between point (3D) and uv (2D) coordinates.
-  std::vector<glm::dvec3> points;
-  const open3d::geometry::RGBDImage rgbd = useMask && pcd.hasMaskedRgbd()
-                                               ? *pcd.getMaskedRgbd()
-                                               : pcd.getRgbdImage();
-  if (rgbd.depth_.bytes_per_channel_ != 4 ||
-      rgbd.depth_.num_of_channels_ != 1) {
-    throw std::runtime_error("We can use only float depth images.");
-  }
-  const float *z = reinterpret_cast<const float *>(rgbd.depth_.data_.data());
-  for (int y = 0; y < rgbd.depth_.height_; y++) {
-    for (int x = 0; x < rgbd.depth_.width_; x++, z++) {
-      if (*z <= 0) {
-        continue;
-      }
-      glm::dvec4 point((x - principal.x) * *z / focal.x,
-                       (y - principal.y) * *z / focal.y, *z, 1.0);
-      points.push_back(matrix * point);
-      uv.emplace_back(x / size.x, 1.0f - y / size.y);
-    }
-  }
-
+  auto [points, pixels] = scene.unprojectDepth(pcd, useMask);
   if (points.empty()) {
     return;
   }
-  using namespace Eigen;
-  tree.emplace(Map<MatrixXd>(glm::value_ptr(points[0]), 3,
-                             static_cast<Index>(points.size())));
+
+  const open3d::camera::PinholeCameraIntrinsic &camera =
+      scene.getCameraIntrinsic();
+  float size[] = {static_cast<float>(camera.width_),
+                  static_cast<float>(camera.height_)};
+  uv.reserve(pixels.size());
+  for (const auto &px : pixels) {
+    uv.emplace_back(px[0] / size[0], 1.0f - px[1] / size[1]);
+  }
+
+  tree.emplace(Map<const MatrixXd>(points[0].data(), 3,
+                                   static_cast<Index>(points.size())));
 }
 
 std::optional<Eigen::Vector2f>
