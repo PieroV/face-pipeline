@@ -168,7 +168,6 @@ void MergeState::alignFrame(size_t idx) {
   mIcpLastFitness = res.fitness_;
   if (mIcpLastFitness >= mIcpMinFitness) {
     pcd.matrix = glm::make_mat4(res.transformation_.data());
-    pcd.rawMatrix = true;
   }
 }
 
@@ -325,8 +324,7 @@ void MergeState::createSymmetrizeGui() {
     auto &clouds = mApp.getScene().clouds;
     for (size_t idx : mIndices) {
       assert(idx < clouds.size());
-      clouds[idx].matrix = mMatrix * clouds[idx].getMatrix();
-      clouds[idx].rawMatrix = true;
+      clouds[idx].matrix = mMatrix * clouds[idx].matrix;
     }
     runMerge();
     mShowSymmetrize = false;
@@ -419,7 +417,7 @@ void MergeState::render(const glm::mat4 &pv) {
   if (mInteractiveMerge && mInteractiveNextIdx < mIndices.size()) {
     assert(mTempCloud != std::numeric_limits<size_t>::max());
     const PointCloud &cloud = clouds[mIndices[mInteractiveNextIdx]];
-    r.renderPointCloud(mTempCloud, cloud.getMatrix(), cloud.color);
+    r.renderPointCloud(mTempCloud, cloud.matrix, cloud.color);
   }
 
   r.endRendering();

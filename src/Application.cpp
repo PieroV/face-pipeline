@@ -355,7 +355,7 @@ void Application::renderScene(const glm::mat4 &pv, bool paintUniform) const {
     if (paintUniform) {
       color = clouds[i].color;
     }
-    mRenderer->renderPointCloud(i, clouds[i].getMatrix(), color);
+    mRenderer->renderPointCloud(i, clouds[i].matrix, color);
   }
   mRenderer->endRendering();
 }

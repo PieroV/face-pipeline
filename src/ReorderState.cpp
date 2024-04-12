@@ -58,9 +58,9 @@ void ReorderState::minimizeDistances() {
   auto &clouds = mApp.getScene().clouds;
   std::vector<float> distances(clouds.size());
   for (size_t i = 0; i < distances.size() - 1; i++) {
-    glm::vec4 pos = clouds[i].getMatrix()[3];
+    glm::vec4 pos = clouds[i].matrix[3];
     for (size_t j = i + 1; j < distances.size(); j++) {
-      distances[j] = glm::distance2(pos, clouds[j].getMatrix()[3]);
+      distances[j] = glm::distance2(pos, clouds[j].matrix[3]);
     }
     ptrdiff_t closest =
         std::min_element(distances.begin() + i + 1, distances.end()) -

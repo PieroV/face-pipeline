@@ -23,7 +23,7 @@ AlignState::AlignState(Application &app, size_t reference, size_t toAlign)
   assert(reference < clouds.size() && toAlign < clouds.size());
   mReference = clouds[reference].getPointCloudCopy();
   mAlign = clouds[toAlign].getPointCloudCopy();
-  mOrigMatrix = clouds[toAlign].getMatrix();
+  mOrigMatrix = clouds[toAlign].matrix;
   assert(mReference && mAlign);
   estimateNormals();
 }
@@ -91,10 +91,9 @@ void AlignState::render(const glm::mat4 &pv) {
   Renderer &r = mApp.getRenderer();
   const auto &clouds = mApp.getScene().clouds;
   r.beginRendering(pv);
-  r.renderPointCloud(0, clouds[mReferenceIndex].getMatrix(),
+  r.renderPointCloud(0, clouds[mReferenceIndex].matrix,
                      clouds[mReferenceIndex].color);
-  r.renderPointCloud(1, clouds[mAlignIndex].getMatrix(),
-                     clouds[mAlignIndex].color);
+  r.renderPointCloud(1, clouds[mAlignIndex].matrix, clouds[mAlignIndex].color);
   r.endRendering();
 }
 
@@ -105,8 +104,8 @@ void AlignState::runIcp() {
 
   assert(mReference && mAlign);
 
-  glm::mat4 matRef = ref.getMatrix();
-  glm::mat4 matAlign = align.getMatrix();
+  glm::mat4 matRef = ref.matrix;
+  glm::mat4 matAlign = align.matrix;
 
   // Theoretically, our 3x3 matrix is always a rotation, therefore orthonormal.
   // So, we could just transpose it to invert it:
@@ -134,7 +133,6 @@ void AlignState::runIcp() {
     // TODO: Save any changes temporarily, and give a way to go accept the
     // changes at the end or go back to the original matrix.
     align.matrix = matRef * T;
-    align.rawMatrix = true;
   }
 }
 

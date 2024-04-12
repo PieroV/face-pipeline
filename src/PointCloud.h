@@ -22,7 +22,6 @@ public:
   PointCloud(const Scene &scene, const std::string &name, double trunc);
   PointCloud(const Scene &scene, const nlohmann::json &j);
 
-  glm::mat4 getMatrix() const;
   Eigen::Matrix4d getMatrixEigen() const;
   nlohmann::json toJson() const;
   void loadData(const Scene &scene);
@@ -36,12 +35,8 @@ public:
   getMaskedPointCloud(bool allowFallback = true) const;
 
   std::string name;
-  glm::vec3 translationPre;
-  glm::vec3 euler;
-  glm::vec3 translationPost;
   glm::vec3 color;
   glm::mat4 matrix;
-  bool rawMatrix;
   bool hidden;
   double trunc;
 

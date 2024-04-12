@@ -236,26 +236,16 @@ void EditorState::createEdit() {
     if (ImGui::Button("New random color")) {
       cloud.color = randomColor();
     }
-    ImGui::Checkbox("Raw matrix", &cloud.rawMatrix);
-    if (!cloud.rawMatrix) {
-      ImGui::InputFloat3("Translation pre",
-                         glm::value_ptr(cloud.translationPre));
-      ImGui::DragFloat3("Rotation", glm::value_ptr(cloud.euler), 0.5f, -360.0f,
-                        360.0f);
-      ImGui::InputFloat3("Translation post",
-                         glm::value_ptr(cloud.translationPost));
-    } else {
-      glm::mat4 rowMajor = glm::transpose(mEditMatrix);
-      ImGui::InputFloat4("Row 0", glm::value_ptr(rowMajor[0]));
-      ImGui::InputFloat4("Row 1", glm::value_ptr(rowMajor[1]));
-      ImGui::InputFloat4("Row 2", glm::value_ptr(rowMajor[2]));
-      ImGui::InputFloat4("Row 3", glm::value_ptr(rowMajor[3]));
-      mEditMatrix = glm::transpose(rowMajor);
-      cloud.matrix = multiTransformUi() * mEditMatrix;
-      if (ImGui::Button("Update matrix")) {
-        mEditMatrix = cloud.matrix;
-        mTransformations.clear();
-      }
+    glm::mat4 rowMajor = glm::transpose(mEditMatrix);
+    ImGui::InputFloat4("Row 0", glm::value_ptr(rowMajor[0]));
+    ImGui::InputFloat4("Row 1", glm::value_ptr(rowMajor[1]));
+    ImGui::InputFloat4("Row 2", glm::value_ptr(rowMajor[2]));
+    ImGui::InputFloat4("Row 3", glm::value_ptr(rowMajor[3]));
+    mEditMatrix = glm::transpose(rowMajor);
+    cloud.matrix = multiTransformUi() * mEditMatrix;
+    if (ImGui::Button("Update matrix")) {
+      mEditMatrix = cloud.matrix;
+      mTransformations.clear();
     }
   }
   ImGui::End();
@@ -366,7 +356,7 @@ void EditorState::beginEdit(size_t idx) {
   const Scene &scene = mApp.getScene();
   assert(idx < scene.clouds.size());
   mEditIndex = idx;
-  mEditMatrix = scene.clouds[idx].getMatrix();
+  mEditMatrix = scene.clouds[idx].matrix;
   mTransformations.clear();
   mMultiEditing = false;
 }
@@ -379,9 +369,7 @@ void EditorState::beginMultiEdit() {
   for (size_t i : mSelected) {
     assert(i < clouds.size());
     // We need to force the point clouds to switch to the raw matrix.
-    glm::mat4 matrix = clouds[i].getMatrix();
-    mMultiEditMatrices.insert({i, matrix});
-    clouds[i].rawMatrix = true;
+    mMultiEditMatrices.insert({i, clouds[i].matrix});
   }
   mTransformations.clear();
 }

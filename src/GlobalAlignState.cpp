@@ -73,7 +73,6 @@ void GlobalAlignState::createGui() {
     if (ImGui::Button("Apply")) {
       for (size_t i = 0; i < mIndices.size(); i++) {
         clouds[i].matrix = mMatrices[i];
-        clouds[i].rawMatrix = true;
       }
     }
     ImGui::EndDisabled();
@@ -92,7 +91,7 @@ GlobalAlignState::voxelDown(size_t idx, double voxelSize,
   auto pcd = clouds[idx].getPointCloud().VoxelDownSample(voxelSize);
   if (pcd) {
     if (!m) {
-      m = clouds[idx].getMatrix();
+      m = clouds[idx].matrix;
     }
     pcd->Transform(
         Eigen::Map<const Eigen::Matrix4f>(glm::value_ptr(*m)).cast<double>());
@@ -130,7 +129,7 @@ bool GlobalAlignState::findFeatures() {
 bool GlobalAlignState::matchFeatures() {
   mMatrices.clear();
   size_t ref = static_cast<size_t>(mReference);
-  glm::mat4 refMatrix = mApp.getScene().clouds[ref].getMatrix();
+  glm::mat4 refMatrix = mApp.getScene().clouds[ref].matrix;
   for (size_t i = 0; i < mVoxelized.size(); i++) {
     if (i == ref) {
       mMatrices.emplace_back(refMatrix);

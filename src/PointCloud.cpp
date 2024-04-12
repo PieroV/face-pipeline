@@ -40,38 +40,39 @@ void from_json(const json &j, mat4 &m) {
 
 PointCloud::PointCloud(const Scene &scene, const std::string &name,
                        double trunc)
-    : name(name), translationPre(0.0f, 0.0f, 0.0f), euler(0.0f, 0.0f, 0.0f),
-      translationPost(0.0f, 0.0f, 0.0f), color(randomColor()), matrix(1.0f),
-      rawMatrix(false), hidden(false), trunc(trunc) {
+    : name(name), color(randomColor()), matrix(1.0f), hidden(false),
+      trunc(trunc) {
   loadData(scene);
 }
 
 PointCloud::PointCloud(const Scene &scene, const json &j) {
   j.at("name").get_to(name);
-  j.at("translationPre").get_to(translationPre);
-  j.at("euler").get_to(euler);
-  j.at("translationPost").get_to(translationPost);
   j.at("matrix").get_to(matrix);
-  j.at("rawMatrix").get_to(rawMatrix);
   j.at("hidden").get_to(hidden);
   j.at("color").get_to(color);
   j.at("trunc").get_to(trunc);
+
+  auto legacyRawMatrix = j.find("rawMatrix");
+  if (legacyRawMatrix != j.end() && legacyRawMatrix->is_boolean() &&
+      !legacyRawMatrix->template get<bool>()) {
+    glm::vec3 translationPre;
+    glm::vec3 euler;
+    glm::vec3 translationPost;
+    j.at("translationPre").get_to(translationPre);
+    j.at("euler").get_to(euler);
+    j.at("translationPost").get_to(translationPost);
+    glm::mat4 mtx =
+        glm::translate(glm::mat4(1.0f), translationPost) *
+        glm::eulerAngleYXZ(glm::radians(euler.y), glm::radians(euler.x),
+                           glm::radians(euler.z));
+    matrix = glm::translate(mtx, translationPre);
+  }
+
   loadData(scene);
 }
 
-glm::mat4 PointCloud::getMatrix() const {
-  if (rawMatrix) {
-    return matrix;
-  }
-  glm::mat4 mtx =
-      glm::translate(glm::mat4(1.0f), translationPost) *
-      glm::eulerAngleYXZ(glm::radians(euler.y), glm::radians(euler.x),
-                         glm::radians(euler.z));
-  return glm::translate(mtx, translationPre);
-}
-
 Eigen::Matrix4d PointCloud::getMatrixEigen() const {
-  return Eigen::Map<const Eigen::Matrix4f>(glm::value_ptr(getMatrix()))
+  return Eigen::Map<const Eigen::Matrix4f>(glm::value_ptr(matrix))
       .cast<double>();
 }
 
@@ -143,10 +144,10 @@ void PointCloud::makeMasked(const Scene &scene) {
 }
 
 json PointCloud::toJson() const {
-  return {{"name", name},          {"translationPre", translationPre},
-          {"euler", euler},        {"translationPost", translationPost},
-          {"matrix", getMatrix()}, {"rawMatrix", rawMatrix},
-          {"hidden", hidden},      {"color", color},
+  return {{"name", name},
+          {"matrix", matrix},
+          {"hidden", hidden},
+          {"color", color},
           {"trunc", trunc}};
 }
 
