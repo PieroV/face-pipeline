@@ -19,6 +19,7 @@ using namespace open3d::pipelines::registration;
 
 AlignState::AlignState(Application &app, size_t reference, size_t toAlign)
     : mApp(app), mReferenceIndex(reference), mAlignIndex(toAlign) {
+  mCriteria.max_iteration_ = 100;
   const auto &clouds = app.getScene().clouds;
   assert(reference < clouds.size() && toAlign < clouds.size());
   mReference = clouds[reference].getPointCloudCopy();
@@ -48,7 +49,7 @@ void AlignState::createGui() {
     refreshBuffer();
   }
 
-  ImGui::InputDouble("Voxel size", &mVoxelSize);
+  ImGui::InputDouble("Voxel size", &mVoxelSize, 0.001, 0.01);
   ImGui::InputInt("Normals KNN", &mNormalsParam.knn_);
   ImGui::BeginDisabled(mVoxelSize <= 0.0 || mNormalsParam.knn_ <= 0);
   if (ImGui::Button("Voxel down")) {
@@ -59,7 +60,7 @@ void AlignState::createGui() {
     refreshBuffer();
   }
 
-  ImGui::InputDouble("Maximum distance", &mMaxDistance);
+  ImGui::InputDouble("Maximum distance", &mMaxDistance, 0.005);
   ImGui::InputInt("Maximum iterations", &mCriteria.max_iteration_);
   ImGui::InputDouble("Relative fitness", &mCriteria.relative_fitness_, 0.0, 0.0,
                      "%e");

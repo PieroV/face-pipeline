@@ -36,7 +36,7 @@ private:
   std::shared_ptr<open3d::geometry::PointCloud> mReference;
   std::shared_ptr<open3d::geometry::PointCloud> mAlign;
 
-  double mMaxDistance = 0.1;
+  double mMaxDistance = 0.01;
   open3d::pipelines::registration::ICPConvergenceCriteria mCriteria;
   open3d::pipelines::registration::RegistrationResult mLastResult;
 };

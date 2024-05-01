@@ -308,7 +308,7 @@ glm::mat4 EditorState::multiTransformUi() {
     switch (tr.first) {
     case Transformation::Translation:
       snprintf(label, sizeof(label), "Translation##%zu", i);
-      ImGui::InputFloat3(label, glm::value_ptr(tr.second));
+      ImGui::DragFloat3(label, glm::value_ptr(tr.second), 0.001);
       ImGui::SameLine();
       if (ImGui::Button(deleteLabel)) {
         mTransformations.erase(mTransformations.begin() + i);
