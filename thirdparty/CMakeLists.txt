@@ -18,6 +18,11 @@ add_library(imgui OBJECT ${IMGUI_SOURCE})
 target_include_directories(imgui PUBLIC imgui imgui/backends imgui/misc/cpp)
 target_link_libraries(imgui glfw)
 
+list(APPEND IMGUIZMO_SOURCE ImGuizmo/ImGuizmo.cpp)
+add_library(ImGuizmo OBJECT ${IMGUIZMO_SOURCE})
+target_include_directories(ImGuizmo PUBLIC ImGuizmo)
+target_link_libraries(ImGuizmo imgui)
+
 add_subdirectory(json)
 
 add_library(natsort natsort/strnatcmp.c)

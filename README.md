@@ -82,6 +82,7 @@ that are either included in the tree, or as git submodules:
 - [Glad](https://glad.dav1d.de/)
 - [GLM](https://glm.g-truc.net/)
 - [Dear ImGui](https://github.com/ocornut/imgui)
+- [ImGuizmo](https://github.com/CedricGuillemet/ImGuizmo)
 - [JSON for Modern C++](https://github.com/nlohmann/json)
 - [natsort](https://github.com/sourcefrog/natsort)
 

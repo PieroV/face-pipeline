@@ -186,6 +186,9 @@ void BaseApplication::keyCallback(int key, int scancode, int action, int mods) {
 void BaseApplication::mouseClickCallback(int button, int action, int mods) {
   (void)mods;
   if (ImGui::GetIO().WantCaptureMouse) {
+    // ImGuizmo might skip our request not to capture the mouse?
+    mMouseCaptured = MouseMovement::None;
+    glfwSetInputMode(mWindow, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
     return;
   }
   MouseMovement mov;
