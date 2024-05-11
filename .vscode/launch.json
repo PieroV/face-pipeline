@@ -8,7 +8,7 @@
       "name": "Debug on GDB",
       "type": "cppdbg",
       "request": "launch",
-      "program": "${workspaceFolder}/build/align",
+      "program": "${workspaceFolder}/build/align/align",
       "args": [],
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}/build",
@@ -26,7 +26,7 @@
       "name": "Debug on LLDB",
       "type": "lldb",
       "request": "launch",
-      "program": "${workspaceFolder}/build/align",
+      "program": "${workspaceFolder}/build/align/align",
       "args": [],
       "cwd": "${workspaceFolder}/build"
     },
