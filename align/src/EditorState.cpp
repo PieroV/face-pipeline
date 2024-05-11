@@ -40,7 +40,10 @@ void EditorState::createMain() {
   Scene &scene = mApp.getScene();
   auto &clouds = scene.clouds;
 
-  ImGui::Begin("Main");
+  if (!ImGui::Begin("Main")) {
+    ImGui::End();
+    return;
+  }
 
   if (ImGui::BeginTable("clouds-table", 6)) {
     ImGui::TableSetupColumn("Select", ImGuiTableColumnFlags_WidthFixed);

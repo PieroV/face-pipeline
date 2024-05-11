@@ -8,4 +8,5 @@ find_package(Eigen3 REQUIRED)
 find_package(glfw3 REQUIRED)
 
 add_subdirectory(thirdparty)
+add_subdirectory(base)
 add_subdirectory(align)

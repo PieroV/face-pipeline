@@ -15,6 +15,8 @@
 
 #include "open3d/geometry/PointCloud.h"
 
+#include "GLObjects.h"
+
 #include "PointCloud.h"
 #include "shaders.h"
 
@@ -90,10 +92,7 @@ private:
   void addPoints(const std::vector<Eigen::Vector3d> &points,
                  const std::vector<Eigen::Vector3d> &colors);
 
-  GLuint mVAO = 0;
-  GLuint mVBO = 0;
-  GLuint mEBO = 0;
-
+  GLObjects mGlObjects;
   ShaderProgram mShader;
   GLint mUniforms[U_Max];
 

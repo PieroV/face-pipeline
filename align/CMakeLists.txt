@@ -3,6 +3,7 @@ add_executable(align ${ALIGN_SOURCES})
 target_include_directories(align SYSTEM PUBLIC include)
 target_link_libraries(
   align
+  base
   Eigen3::Eigen
   glfw
   glad

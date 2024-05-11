@@ -1,0 +1,5 @@
+file(GLOB BASE_SOURCE src/*.cpp)
+add_library(base OBJECT ${BASE_SOURCE})
+target_include_directories(base PUBLIC include)
+target_link_libraries(base glad glfw imgui)
+target_compile_options(base PRIVATE -Wall -Wextra -Wpedantic -Werror)

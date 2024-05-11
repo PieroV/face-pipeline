@@ -28,21 +28,10 @@ Renderer::Renderer() : mShader(createShader()) {
   static const char *uniformNames[U_Max] = {
       "pv",           "model",        "mirror",     "mirrorDraw",
       "paintUniform", "uniformColor", "useTexture", "theTexture"};
-  for (size_t i = 0; i < U_Max; i++) {
-    mUniforms[i] = mShader.getUniformLocation(uniformNames[i]);
-    if (mUniforms[i] < 0) {
-      constexpr size_t len = 99;
-      char message[len + 1];
-      snprintf(message, len, "Cannot find the %s uniform.", uniformNames[i]);
-      message[len] = 0;
-      throw std::runtime_error(message);
-    }
-  }
+  mShader.getUniformLocations(uniformNames, mUniforms, U_Max);
 
-  glGenVertexArrays(1, &mVAO);
-  glGenBuffers(1, &mVBO);
-  glBindVertexArray(mVAO);
-  glBindBuffer(GL_ARRAY_BUFFER, mVBO);
+  glBindVertexArray(mGlObjects.vao);
+  glBindBuffer(GL_ARRAY_BUFFER, mGlObjects.vbo);
   glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE,
                         mBuffer.cols() * sizeof(float), nullptr);
   glEnableVertexAttribArray(0);
@@ -54,22 +43,14 @@ Renderer::Renderer() : mShader(createShader()) {
                         mBuffer.cols() * sizeof(float),
                         (void *)(6 * sizeof(float)));
   glEnableVertexAttribArray(2);
-  glGenBuffers(1, &mEBO);
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mEBO);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mGlObjects.ebo);
   glBindVertexArray(0);
 
   clearBuffer();
   uploadBuffer();
 }
 
-Renderer::~Renderer() {
-  glDeleteVertexArrays(1, &mVAO);
-  mVAO = 0;
-  glDeleteBuffers(1, &mVBO);
-  mVBO = 0;
-  glDeleteBuffers(1, &mEBO);
-  mEBO = 0;
-}
+Renderer::~Renderer() {}
 
 size_t Renderer::addPointCloud(const PointCloud &pcd,
                                std::optional<double> voxelSize) {
@@ -127,7 +108,6 @@ size_t Renderer::addTriangleMesh(const open3d::geometry::TriangleMesh &mesh) {
     mOffsets.push_back(static_cast<GLsizei>(mBuffer.rows()));
     mIndexOffsets.push_back(static_cast<GLsizei>(mIndices.size()));
     return mOffsets.size() - 2;
-    ;
   }
 
   if (mesh.vertex_colors_.size() != mesh.vertices_.size()) {
@@ -157,7 +137,7 @@ size_t Renderer::addTriangleMesh(const VertexMatrix &vertices,
 
 void Renderer::uploadBuffer() const {
   assert(mOffsets.size() == mIndexOffsets.size());
-  glBindVertexArray(mVAO);
+  glBindVertexArray(mGlObjects.vao);
   glBufferData(GL_ARRAY_BUFFER, mBuffer.size() * sizeof(float), mBuffer.data(),
                GL_STATIC_DRAW);
   if (!mIndices.empty()) {
@@ -178,7 +158,7 @@ void Renderer::clearBuffer() {
 void Renderer::beginRendering(const glm::mat4 &pv) const {
   mShader.use();
   glUniformMatrix4fv(mUniforms[U_PV], 1, GL_FALSE, glm::value_ptr(pv));
-  glBindVertexArray(mVAO);
+  glBindVertexArray(mGlObjects.vao);
   glm::mat4 model(1.0f);
   glUniformMatrix4fv(mUniforms[U_Model], 1, GL_FALSE, glm::value_ptr(model));
   // Axes are never painted in uniform and never subject to symmetry.

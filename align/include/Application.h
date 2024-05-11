@@ -8,11 +8,7 @@
 
 #include <memory>
 
-#include "glad/glad.h"
-
-#include "GLFW/glfw3.h"
-
-#include "glm/glm.hpp"
+#include "BaseApplication.h"
 
 #include "Renderer.h"
 #include "Scene.h"
@@ -32,16 +28,9 @@ public:
   }
 };
 
-class Application {
+class Application : public BaseApplication {
 public:
-  enum class MouseMovement {
-    None,
-    Rotate,
-    Pan,
-  };
-
   Application();
-  ~Application();
   int run(const char *dataDirectory);
 
   void setState(std::unique_ptr<AppState> newState);
@@ -55,19 +44,11 @@ public:
   void refreshBuffer(std::optional<double> voxelSize = std::nullopt);
   void renderScene(const glm::mat4 &pv, bool paintUniform = false) const;
 
-private:
-  void initGlfw();
-  void initImgui();
-  void terminate();
-
-  void keyCallback(int key, int scancode, int action, int mods);
-  void mouseClickCallback(int button, int action, int mods);
-  void mousePosCallback(double x, double y);
-  void mouseScrollCallback(double xoffset, double yoffset);
-  static void glfwErrorCallback(int error, const char *description);
-
-  GLFWwindow *mWindow = nullptr;
-  bool mHasImgui = false;
+protected:
+  void beginFrame() override;
+  void createGui() override;
+  void render() override;
+  void keyCallback(int key, int scancode, int action, int mods) override;
 
   // We need to defer the renderer initialization until we have loaded OpenGL.
   std::optional<Renderer> mRenderer;
@@ -75,10 +56,4 @@ private:
   std::unique_ptr<AppState> mCurrentState;
   std::unique_ptr<AppState> mPendingState;
   std::unique_ptr<Scene> mScene;
-
-  glm::mat4 mCamFrame;
-  MouseMovement mMouseCaptured = MouseMovement::None;
-  bool mPerspective = true;
-
-  bool mImguiDemo = false;
 };
