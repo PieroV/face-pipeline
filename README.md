@@ -17,8 +17,8 @@ is basically an application of their pipeline.
 
 The first step is to capture the input frames.
 
-The `read-bag.py` script provides a way to extract the needed data from a bag
-file created with the Intel® RealSense™ Viewer or SDK.
+The `realsense-read-bag.py` script provides a way to extract the needed data
+from a bag file created with the Intel® RealSense™ Viewer or SDK.
 
 The essential files are aligned RGB and depth frames, and a `camera.json` with
 intrinsic parameters.
@@ -29,6 +29,9 @@ manual selection of the frames.
 
 From my tests, it is better to use just a reduced number of cherry-picked good
 frames, rather than trying to automatically deal with all the frames.
+
+The `align` program will load all the frames in memory (and also on the GPU), so
+it isn't suited for running with all the frames of a scan.
 
 ### 3. Rough manual alignment of the frames
 
@@ -59,21 +62,30 @@ from it in any format supported by Open3D.
 
 ## Dependencies
 
-This project depends on the following libraries, that you should provide on your
-own:
+This project is built upon [Open3D](https://www.open3d.org).
 
-- [Open3D](https://www.open3d.org/)
-- [Eigen](https://eigen.tuxfamily.org/) (already required by Open3D)
+Building it isn't trivial, so you'll have to follow their instructions, or
+download their prebuilt binaries, or install it from a package manager.
+
+We use some of Open3D's dependencies directly:
+
+- [Eigen](https://eigen.tuxfamily.org/)
 - [GLFW3](https://www.glfw.org/)
-- [GLM](https://glm.g-truc.net/)
 
-In addition to that, it depends on the following libraries, that are included
-either in the tree, or as git submodules:
+It should be possible to configure CMake to look for them from Open3D, but
+I haven't tried it, yet (my Open3D build is linked to the libraies provided by
+my system, and in general I've built the project only on Debian testing).
+
+In addition to that, the `align` program depends on the following libraries,
+that are either included in the tree, or as git submodules:
 
 - [Glad](https://glad.dav1d.de/)
+- [GLM](https://glm.g-truc.net/)
 - [Dear ImGui](https://github.com/ocornut/imgui)
 - [JSON for Modern C++](https://github.com/nlohmann/json)
 - [natsort](https://github.com/sourcefrog/natsort)
+
+If needed, they will be built as static libraries.
 
 While this project’s code is dedicated to the public domain (you can refer to
 the [Zero-Clause BSD license](https://opensource.org/license/0bsd/), if needed),

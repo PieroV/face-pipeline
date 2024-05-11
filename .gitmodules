@@ -1,9 +1,12 @@
-[submodule "json"]
-	path = thirdparty/json
-	url = https://github.com/nlohmann/json.git
+[submodule "glm"]
+	path = thirdparty/glm
+	url = https://github.com/g-truc/glm.git
 [submodule "imgui"]
 	path = thirdparty/imgui
 	url = https://github.com/ocornut/imgui.git
-[submodule "thirdparty/natsort"]
+[submodule "json"]
+	path = thirdparty/json
+	url = https://github.com/nlohmann/json.git
+[submodule "natsort"]
 	path = thirdparty/natsort
 	url = https://github.com/sourcefrog/natsort.git
