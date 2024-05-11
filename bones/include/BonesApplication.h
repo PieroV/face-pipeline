@@ -40,7 +40,7 @@ private:
   };
 
   void updateHandles();
-
+  void computeWeights();
   void uploadMesh();
 
   open3d::geometry::TriangleMesh mMesh;

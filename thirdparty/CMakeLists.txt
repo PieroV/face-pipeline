@@ -25,5 +25,7 @@ target_link_libraries(ImGuizmo imgui)
 
 add_subdirectory(json)
 
+add_subdirectory(libigl)
+
 add_library(natsort natsort/strnatcmp.c)
 target_include_directories(natsort PUBLIC natsort)

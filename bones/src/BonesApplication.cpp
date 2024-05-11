@@ -18,6 +18,10 @@
 
 #include "shader.h"
 
+Eigen::MatrixXd computeBoneWeights(const open3d::geometry::TriangleMesh &mesh,
+                                   const std::vector<glm::dvec3> &bonePos,
+                                   const std::vector<int> &bonePairs);
+
 // TODO: Should this take density into account?
 constexpr float handleRadius = 8;
 
@@ -94,6 +98,9 @@ void BonesApplication::createGui() {
       ImGui::EndDisabled();
     } else if (mSelectedBone) {
       ImGui::Text("Selected bone: %s", mSelectedBone->name.c_str());
+    }
+    if (mMode == M_Edit && ImGui::Button("Compute weights")) {
+      computeWeights();
     }
   }
   ImGui::End();
@@ -251,6 +258,24 @@ void BonesApplication::updateHandles() {
     }
     dl->AddCircleFilled(bh.pos, handleRadius, color);
   }
+}
+
+void BonesApplication::computeWeights() {
+  std::unordered_map<std::shared_ptr<const Bone>, int> boneIndices;
+  std::vector<glm::dvec3> bonePos;
+  std::vector<int> bonePairs;
+  mRootBone->traverse([&](const Bone &b) {
+    auto pair = boneIndices.insert(
+        {b.shared_from_this(), static_cast<int>(boneIndices.size())});
+    std::shared_ptr<Bone> parent = b.parent.lock();
+    bonePos.emplace_back(b.world[3]);
+    if (parent) {
+      bonePairs.push_back(boneIndices.at(parent));
+      bonePairs.push_back(pair.first->second);
+    }
+  });
+
+  computeBoneWeights(mMesh, bonePos, bonePairs);
 }
 
 void BonesApplication::render() {

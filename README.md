@@ -84,6 +84,7 @@ that are either included in the tree, or as git submodules:
 - [Dear ImGui](https://github.com/ocornut/imgui)
 - [ImGuizmo](https://github.com/CedricGuillemet/ImGuizmo)
 - [JSON for Modern C++](https://github.com/nlohmann/json)
+- [libigl](https://libigl.github.io/)
 - [natsort](https://github.com/sourcefrog/natsort)
 
 If needed, they will be built as static libraries.

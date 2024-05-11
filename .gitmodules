@@ -10,6 +10,9 @@
 [submodule "json"]
 	path = thirdparty/json
 	url = https://github.com/nlohmann/json.git
+[submodule "libigl"]
+	path = thirdparty/libigl
+	url = https://github.com/libigl/libigl.git
 [submodule "natsort"]
 	path = thirdparty/natsort
 	url = https://github.com/sourcefrog/natsort.git
