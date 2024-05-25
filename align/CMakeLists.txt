@@ -9,6 +9,7 @@ target_link_libraries(
   glad
   glm
   imgui
+  ImGuizmo
   Open3D
   natsort
   nlohmann_json)

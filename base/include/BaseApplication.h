@@ -24,6 +24,9 @@ public:
   virtual ~BaseApplication();
   virtual int run();
 
+  const glm::mat4 &getView() const { return mView; }
+  const glm::mat4 &getProjection() const { return mProjection; }
+
 protected:
   void initGlfw(const char *windowTitle);
   void initImgui();

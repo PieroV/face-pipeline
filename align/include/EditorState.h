@@ -49,6 +49,7 @@ private:
   bool mEditing = false;
   size_t mEditIndex = 0;
   glm::mat4 mEditMatrix;
+  size_t mEditCopy = 0;
 
   bool mMultiEditing = false;
   std::unordered_map<size_t, glm::mat4> mMultiEditMatrices;

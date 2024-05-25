@@ -12,6 +12,8 @@
 #include "imgui.h"
 #include "imgui_stdlib.h"
 
+#include "ImGuizmo.h"
+
 #include "AddFrameState.h"
 #include "AlignState.h"
 #include "GlobalAlignState.h"
@@ -24,9 +26,16 @@
 EditorState::EditorState(Application &app)
     : mApp(app), mScene(app.getScene()) {}
 
-void EditorState::start() { refreshBuffer(); }
+void EditorState::start() {
+  refreshBuffer();
+  ImGuizmo::SetImGuiContext(ImGui::GetCurrentContext());
+}
 
 void EditorState::createGui() {
+  ImGuizmo::BeginFrame();
+  ImGuiIO &io = ImGui::GetIO();
+  ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
+
   createMain();
   if (mEditing) {
     createEdit();
@@ -235,10 +244,33 @@ void EditorState::createEdit() {
       cloud.loadData(scene);
       refreshBuffer();
     }
+
     ImGui::ColorEdit3("Color", glm::value_ptr(cloud.color));
     if (ImGui::Button("New random color")) {
       cloud.color = randomColor();
     }
+
+    assert(mEditCopy < scene.clouds.size());
+    if (ImGui::BeginCombo("Copy from", scene.clouds[mEditCopy].name.c_str())) {
+      for (size_t i = 0; i < scene.clouds.size(); i++) {
+        bool isSelected = (mEditCopy == i);
+        if (ImGui::Selectable(scene.clouds[i].name.c_str(), isSelected)) {
+          mEditCopy = i;
+        }
+        if (isSelected) {
+          ImGui::SetItemDefaultFocus();
+        }
+      }
+      ImGui::EndCombo();
+    }
+    ImGui::BeginDisabled(mEditCopy == mEditIndex);
+    if (ImGui::Button("Copy")) {
+      cloud.matrix = scene.clouds[mEditCopy].matrix;
+      mEditMatrix = cloud.matrix;
+      mTransformations.clear();
+    }
+    ImGui::EndDisabled();
+
     glm::mat4 rowMajor = glm::transpose(mEditMatrix);
     ImGui::InputFloat4("Row 0", glm::value_ptr(rowMajor[0]));
     ImGui::InputFloat4("Row 1", glm::value_ptr(rowMajor[1]));
@@ -250,9 +282,17 @@ void EditorState::createEdit() {
       mEditMatrix = cloud.matrix;
       mTransformations.clear();
     }
+
+    ImGui::End();
+    ImGui::PopStyleVar();
   }
-  ImGui::End();
-  ImGui::PopStyleVar();
+
+  if (mEditing && mTransformations.empty()) {
+    ImGuizmo::Manipulate(glm::value_ptr(mApp.getView()),
+                         glm::value_ptr(mApp.getProjection()),
+                         ImGuizmo::TRANSLATE | ImGuizmo::ROTATE,
+                         ImGuizmo::LOCAL, glm::value_ptr(mEditMatrix));
+  }
 }
 
 void EditorState::createMultiEdit() {
@@ -268,6 +308,21 @@ void EditorState::createMultiEdit() {
   }
   ImGui::End();
   ImGui::PopStyleVar();
+
+  if (mMultiEditing && mTransformations.empty()) {
+    glm::mat4 delta;
+    if (ImGuizmo::Manipulate(glm::value_ptr(mApp.getView()),
+                             glm::value_ptr(mApp.getProjection()),
+                             ImGuizmo::TRANSLATE | ImGuizmo::ROTATE,
+                             ImGuizmo::LOCAL, glm::value_ptr(mEditMatrix),
+                             glm::value_ptr(delta))) {
+      for (auto &pair : mMultiEditMatrices) {
+        assert(pair.first < clouds.size());
+        pair.second = delta * pair.second;
+        clouds[pair.first].matrix = pair.second;
+      }
+    }
+  }
 }
 
 void EditorState::render(const glm::mat4 &pv) {
@@ -360,6 +415,7 @@ void EditorState::beginEdit(size_t idx) {
   assert(idx < scene.clouds.size());
   mEditIndex = idx;
   mEditMatrix = scene.clouds[idx].matrix;
+  mEditCopy = mEditIndex > 0 ? mEditIndex - 1 : 0;
   mTransformations.clear();
   mMultiEditing = false;
 }
@@ -375,6 +431,8 @@ void EditorState::beginMultiEdit() {
     mMultiEditMatrices.insert({i, clouds[i].matrix});
   }
   mTransformations.clear();
+  // We also use the edit matrix with the Gizmo.
+  mEditMatrix = glm::mat4(1.0f);
 }
 
 void EditorState::refreshBuffer() {
