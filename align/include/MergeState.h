@@ -9,7 +9,7 @@
 #include <optional>
 #include <set>
 
-#include "open3d/pipelines/integration/UniformTSDFVolume.h"
+#include "open3d/pipelines/integration/TSDFVolume.h"
 #include "open3d/pipelines/registration/Registration.h"
 
 #include "Application.h"
@@ -22,6 +22,11 @@ public:
   void render(const glm::mat4 &pv) override;
 
 private:
+  enum VolumeType {
+    VT_Uniform,
+    VT_Scalable,
+  };
+
   enum RenderMode {
     RM_PointCloud,
     RM_Mesh,
@@ -45,12 +50,14 @@ private:
   Application &mApp;
   std::vector<size_t> mIndices;
 
+  int mVolumeType = VT_Uniform;
   double mLength = 2.0;
   int mResolution = 500;
+  double mVoxelSize = 0.005;
   double mSdfTrunc = 0.04;
   // Shift by half of the default mLength for x and y.
   Eigen::Vector3f mOrigin{-1.0f, -1.0f, 0.0f};
-  std::optional<open3d::pipelines::integration::UniformTSDFVolume> mVolume;
+  std::unique_ptr<open3d::pipelines::integration::TSDFVolume> mVolume;
 
   double mIcpDistance = 0.01;
   open3d::pipelines::registration::ICPConvergenceCriteria mIcpCriteria;

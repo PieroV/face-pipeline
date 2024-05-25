@@ -16,6 +16,8 @@
 #include "open3d/io/PointCloudIO.h"
 #include "open3d/io/TriangleMeshIO.h"
 #include "open3d/pipelines/color_map/RigidOptimizer.h"
+#include "open3d/pipelines/integration/ScalableTSDFVolume.h"
+#include "open3d/pipelines/integration/UniformTSDFVolume.h"
 
 #include "EditorState.h"
 #include "utilities.h"
@@ -35,24 +37,34 @@ void MergeState::start() {
 void MergeState::createGui() {
   if (ImGui::Begin("Merge")) {
     ImGui::BeginDisabled(mInteractiveMerge);
-    ImGui::InputDouble("Length", &mLength);
-    ImGui::InputInt("Resolution", &mResolution);
-    double memory = pow(mResolution, 3) * sizeof(open3d::geometry::TSDFVoxel);
-    char unit;
-    if (memory > 1e9) {
-      memory *= 1e-9;
-      unit = 'G';
-    } else if (memory > 1e6) {
-      memory *= 1e-6;
-      unit = 'M';
-    } else {
-      memory *= 1e-3;
-      unit = 'k';
+
+    ImGui::RadioButton("Uniform", &mVolumeType, VT_Uniform);
+    ImGui::SameLine();
+    ImGui::RadioButton("Scalable", &mVolumeType, VT_Scalable);
+
+    if (mVolumeType == VT_Uniform) {
+      ImGui::InputDouble("Length", &mLength);
+      ImGui::InputInt("Resolution", &mResolution);
+      double memory = pow(mResolution, 3) * sizeof(open3d::geometry::TSDFVoxel);
+      char unit;
+      if (memory > 1e9) {
+        memory *= 1e-9;
+        unit = 'G';
+      } else if (memory > 1e6) {
+        memory *= 1e-6;
+        unit = 'M';
+      } else {
+        memory *= 1e-3;
+        unit = 'k';
+      }
+      ImGui::Text("Requested memory: %.3f%cB", memory, unit);
+      ImGui::Text("Voxel size: %f", mLength / mResolution);
+      ImGui::InputFloat3("Origin", mOrigin.data());
+    } else if (mVolumeType == VT_Scalable) {
+      ImGui::InputDouble("Voxel size", &mVoxelSize);
     }
-    ImGui::Text("Requested memory: %.3f%cB", memory, unit);
-    ImGui::Text("Voxel size: %f", mLength / mResolution);
+
     ImGui::InputDouble("SDF truncation value", &mSdfTrunc);
-    ImGui::InputFloat3("Origin", mOrigin.data());
     ImGui::Checkbox("Align frames before merging", &mAlignBeforeMerge);
     ImGui::EndDisabled();
 
@@ -140,9 +152,23 @@ void MergeState::runMerge() {
 }
 
 void MergeState::createVolume() {
-  mVolume.emplace(mLength, mResolution, mSdfTrunc,
-                  open3d::pipelines::integration::TSDFVolumeColorType::RGB8,
-                  mOrigin.cast<double>());
+  switch (mVolumeType) {
+  case VT_Uniform:
+    mVolume =
+        std::make_unique<open3d::pipelines::integration::UniformTSDFVolume>(
+            mLength, mResolution, mSdfTrunc,
+            open3d::pipelines::integration::TSDFVolumeColorType::RGB8,
+            mOrigin.cast<double>());
+    break;
+  case VT_Scalable:
+    mVolume =
+        std::make_unique<open3d::pipelines::integration::ScalableTSDFVolume>(
+            mVoxelSize, mSdfTrunc,
+            open3d::pipelines::integration::TSDFVolumeColorType::RGB8);
+    break;
+  default:
+    throw std::runtime_error("Unexpected volume type.");
+  }
 }
 
 void MergeState::integrateFrame(size_t idx) {
