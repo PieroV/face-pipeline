@@ -10,7 +10,7 @@ target_link_libraries(
   glm
   imgui
   ImGuizmo
-  Open3D
+  Open3D::Open3D
   natsort
   nlohmann_json)
 target_compile_options(align PRIVATE -Wall -Wextra -Wpedantic -Werror)

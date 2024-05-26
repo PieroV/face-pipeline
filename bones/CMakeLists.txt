@@ -11,7 +11,7 @@ target_link_libraries(
   igl::core
   imgui
   ImGuizmo
-  Open3D)
+  Open3D::Open3D)
 target_compile_options(bones PRIVATE -Wall -Wextra -Wpedantic -Werror)
 target_compile_definitions(bones PRIVATE GLM_ENABLE_EXPERIMENTAL)
 
