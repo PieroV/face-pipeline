@@ -27,6 +27,14 @@ MergeState::MergeState(Application &app, const std::set<size_t> &indices)
   if (indices.empty()) {
     throw std::invalid_argument("Indices cannot be empty.");
   }
+  const auto &clouds = app.getScene().clouds;
+  mColorType = open3d::pipelines::integration::TSDFVolumeColorType::RGB8;
+  for (size_t idx : indices) {
+    if (clouds[idx].getRgbdImage().color_.num_of_channels_ < 2) {
+      mColorType = open3d::pipelines::integration::TSDFVolumeColorType::Gray32;
+      break;
+    }
+  }
 }
 
 void MergeState::start() {
@@ -156,15 +164,13 @@ void MergeState::createVolume() {
   case VT_Uniform:
     mVolume =
         std::make_unique<open3d::pipelines::integration::UniformTSDFVolume>(
-            mLength, mResolution, mSdfTrunc,
-            open3d::pipelines::integration::TSDFVolumeColorType::RGB8,
+            mLength, mResolution, mSdfTrunc, mColorType,
             mOrigin.cast<double>());
     break;
   case VT_Scalable:
     mVolume =
         std::make_unique<open3d::pipelines::integration::ScalableTSDFVolume>(
-            mVoxelSize, mSdfTrunc,
-            open3d::pipelines::integration::TSDFVolumeColorType::RGB8);
+            mVoxelSize, mSdfTrunc, mColorType);
     break;
   default:
     throw std::runtime_error("Unexpected volume type.");

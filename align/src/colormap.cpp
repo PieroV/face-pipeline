@@ -135,7 +135,7 @@ Image createColormap(const Image &rgb, const Image &depth, float blend,
   if (rgb.width_ != depth.width_ || rgb.height_ != depth.height_) {
     throw std::invalid_argument("RGB and depth must have the same size");
   }
-  if (rgb.num_of_channels_ != 3 || rgb.bytes_per_channel_ != 1) {
+  if (rgb.bytes_per_channel_ != 1 || rgb.num_of_channels_ > 4) {
     throw std::invalid_argument("Unsupported RGB image");
   }
   if (depth.width_ <= 0 || depth.height_ <= 0) {
@@ -166,15 +166,30 @@ Image createColormap(const Image &rgb, const Image &depth, float blend,
   const float *valP = vals.data();
   float alpha = 1 - blend;
   float beta = blend;
-  for (int r = 0; r < depth.height_; r++) {
-    for (int c = 0; c < depth.width_; c++) {
-      uint8_t idx = static_cast<uint8_t>(*valP > 1.0f ? 0.0f : *valP * 255.0f);
-      valP++;
-      // We don't really care of the correctness of the color at this point, so
-      // we don't apply the gamma correction.
-      *data++ = alpha * *rgbP++ / 255.0f + beta * plasmaR[idx];
-      *data++ = alpha * *rgbP++ / 255.0f + beta * plasmaG[idx];
-      *data++ = alpha * *rgbP++ / 255.0f + beta * plasmaB[idx];
+  if (rgb.num_of_channels_ >= 3) {
+    for (int r = 0; r < depth.height_; r++) {
+      for (int c = 0; c < depth.width_; c++, rgbP += rgb.num_of_channels_) {
+        uint8_t idx =
+            static_cast<uint8_t>(*valP > 1.0f ? 0.0f : *valP * 255.0f);
+        valP++;
+        // We don't really care of the correctness of the color at this point,
+        // so we don't apply the gamma correction.
+        *data++ = alpha * *rgbP / 255.0f + beta * plasmaR[idx];
+        *data++ = alpha * *(rgbP + 1) / 255.0f + beta * plasmaG[idx];
+        *data++ = alpha * *(rgbP + 2) / 255.0f + beta * plasmaB[idx];
+      }
+    }
+  } else {
+    for (int r = 0; r < depth.height_; r++) {
+      for (int c = 0; c < depth.width_; c++, rgbP += rgb.num_of_channels_) {
+        uint8_t idx =
+            static_cast<uint8_t>(*valP > 1.0f ? 0.0f : *valP * 255.0f);
+        valP++;
+        float brightness = *rgbP / 255.0f;
+        *data++ = alpha * brightness + beta * plasmaR[idx];
+        *data++ = alpha * brightness + beta * plasmaG[idx];
+        *data++ = alpha * brightness + beta * plasmaB[idx];
+      }
     }
   }
   return out;

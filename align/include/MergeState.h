@@ -51,6 +51,8 @@ private:
   std::vector<size_t> mIndices;
 
   int mVolumeType = VT_Uniform;
+  open3d::pipelines::integration::TSDFVolumeColorType mColorType =
+      open3d::pipelines::integration::TSDFVolumeColorType::RGB8;
   double mLength = 2.0;
   int mResolution = 500;
   double mVoxelSize = 0.005;
