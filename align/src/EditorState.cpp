@@ -193,6 +193,13 @@ void EditorState::createMain() {
   if (ImGui::Button("Reorder")) {
     mApp.setState(std::make_unique<ReorderState>(mApp));
   }
+  ImGui::SameLine();
+  if (ImGui::Button("Reload data")) {
+    for (PointCloud &pcd : clouds) {
+      pcd.loadData(scene);
+    }
+    refreshBuffer();
+  }
 
   if (ImGui::Button("Save")) {
     scene.save();
