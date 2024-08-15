@@ -141,9 +141,14 @@ Image createColormap(const Image &rgb, const Image &depth, float blend,
   if (depth.width_ <= 0 || depth.height_ <= 0) {
     throw std::invalid_argument("Image with invalid size.");
   }
-  if (depth.num_of_channels_ != 1 ||
-      (depth.bytes_per_channel_ != 2 && depth.bytes_per_channel_ != 4)) {
-    throw std::invalid_argument("Not a depth image or unsupported format");
+  if (depth.num_of_channels_ != 1) {
+    throw std::invalid_argument("Depth images must have only one channel.");
+  }
+  if (depth.bytes_per_channel_ != 2 && depth.bytes_per_channel_ != 4) {
+    char error[50];
+    snprintf(error, sizeof(error), "Unsupported depth bitdepth (%d).",
+             depth.bytes_per_channel_);
+    throw std::invalid_argument(error);
   }
 
   Matrix<float, Dynamic, Dynamic, RowMajor> vals;
