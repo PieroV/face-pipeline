@@ -20,29 +20,15 @@
 
 namespace fs = std::filesystem;
 
-namespace {
-template <typename> struct FilenameComparer {
-  static bool compare(const fs::path &a, const fs::path &b) { return a < b; }
-};
+/**
+ * Returns the extension of a path converted to lowercase.
+ *
+ * For our purposes, we accept only ASCII extensions, which simplifies this
+ * function.
+ */
+static std::string lowercaseExtension(const fs::path &p);
 
-template <> struct FilenameComparer<char> {
-  static bool compare(const fs::path &a, const fs::path &b) {
-    return strnatcasecmp(a.c_str(), b.c_str()) < 0;
-  }
-};
-
-/*
-// TODO: Enable and check this on Windows. Requires <shlwapi.h>
-template <> struct FilenameComparer<wchar_t> {
-  static bool compare(const fs::path &a, const fs::path &b) {
-    return StrCmpLogicalW(a.c_str(), b.c_str()) < 0;
-  }
-};
-*/
-} // namespace
-
-AddFrameState::AddFrameState(Application &app)
-    : mApp(app), mFrames(&FilenameComparer<fs::path::value_type>::compare) {
+AddFrameState::AddFrameState(Application &app) : mApp(app) {
   const open3d::camera::PinholeCameraIntrinsic &intr =
       app.getScene().getCameraIntrinsic();
   if (intr.width_ <= 0 || intr.height_ <= 0) {
@@ -86,19 +72,39 @@ void AddFrameState::listFrames() {
     mAlreadyUsed.insert(pcd.name);
   }
 
-  for (const fs::directory_entry &entry : fs::directory_iterator(rgbPath)) {
-    const fs::path &p = entry.path();
-    fs::path name = p.filename();
-    // In the future we might allow png also for RGB data (and maybe do a
-    // case-insensitive comparison).
-    if (name.extension() != ".jpg") {
+  // The following steps should not hurt a healthy dataset: we enable
+  // case-insensitivity on the extension (and maybe also on the stem, in the
+  // future), which however means that some frames might be discarded (and the
+  // one that will be taken depends on the order on which we iterate).
+  std::unordered_map<fs::path, fs::path> depthStems;
+  for (const fs::directory_entry &entry : fs::directory_iterator(depthPath)) {
+    fs::path p = entry.path().lexically_proximate(base);
+    if (lowercaseExtension(p) != ".png") {
       continue;
     }
-    name.replace_extension("");
-    fs::path maybeDepth = depthPath / name;
-    maybeDepth.replace_extension(".png");
-    if (fs::exists(maybeDepth)) {
-      mFrames.insert(name);
+    auto res = depthStems.insert(std::make_pair(p.stem(), p));
+    // In debug mode, assert about unhealthy datasets.
+    assert(res.second && "Duplicated depth stem.");
+  }
+
+  // We support mulitple extensions (jpg, png and various variants in
+  // case-sensitive filesystems), so multiple color frames could be associated
+  // to the same depth frame.
+  // However, the FrameSet class checks only the depth name (which has already
+  // been forced to be unique), so only the first entry will be taken into
+  // account. However, which one will be taken depends on the order of
+  // iteration.
+  // This should not be a problem for healthy dataset, but not a completely
+  // correct solution either.
+  for (const fs::directory_entry &entry : fs::directory_iterator(rgbPath)) {
+    fs::path p = entry.path().lexically_proximate(base);
+    std::string ext = lowercaseExtension(p);
+    if (ext != ".jpg" && ext != ".png") {
+      continue;
+    }
+    auto maybeDepth = depthStems.find(p.stem());
+    if (maybeDepth != depthStems.end()) {
+      mFrames.emplace(p, maybeDepth->second);
     }
   }
 
@@ -115,14 +121,16 @@ bool AddFrameState::updateTexture() {
   open3d::geometry::Image colormap;
   try {
     if (*mCurrentFrame != mLastLoaded) {
-      std::tie(mLastRgb, mLastDepth) = scene.openFrame(*mCurrentFrame);
+      std::tie(mLastRgb, mLastDepth) =
+          scene.openFrame(mCurrentFrame->rgb, mCurrentFrame->d);
     }
     colormap =
         createColormap(mLastRgb, mLastDepth, mBlend,
                        static_cast<float>(scene.getDepthScale()), mTrunc);
-    mLastLoaded = *mCurrentFrame;
+    mLastLoaded = mCurrentFrame->stem;
   } catch (std::exception &e) {
-    fprintf(stderr, "%s\n", e.what());
+    fprintf(stderr, "Cannot load %s: %s\n", mCurrentFrame->stem.c_str(),
+            e.what());
     mCurrentFrame = mFrames.erase(mCurrentFrame);
     return false;
   }
@@ -177,9 +185,9 @@ void AddFrameState::showFrame() {
   // https://github.com/ocornut/imgui/wiki/Image-Loading-and-Displaying-Examples#example-for-opengl-users
   ImGui::Image((void *)(intptr_t)mTexture, ImVec2(width, height));
 
-  std::string filename = mCurrentFrame->string();
+  std::string filename = mCurrentFrame->stem;
   if (ImGui::InputText("Filename", &filename)) {
-    fs::path current = *mCurrentFrame;
+    const std::string &current = mCurrentFrame->stem;
     FrameSet::const_iterator maybeNew = mFrames.find(filename);
     if (maybeNew != mFrames.end()) {
       mCurrentFrame = maybeNew;
@@ -202,12 +210,13 @@ void AddFrameState::showFrame() {
   }
   ImGui::PopButtonRepeat();
 
-  bool inScene = mAlreadyUsed.count(*mCurrentFrame);
+  bool inScene = mAlreadyUsed.count(mCurrentFrame->stem);
   ImGui::BeginDisabled(inScene);
   if (ImGui::Button(inScene ? "Already added" : "Add", ImVec2(120, 0))) {
     Scene &scene = mApp.getScene();
-    scene.clouds.emplace_back(scene, mCurrentFrame->string(), mTrunc);
-    mAlreadyUsed.insert(*mCurrentFrame);
+    scene.clouds.emplace_back(scene, mCurrentFrame->stem, mCurrentFrame->rgb,
+                              mCurrentFrame->d, mTrunc);
+    mAlreadyUsed.insert(mCurrentFrame->stem);
     mApp.refreshBuffer();
     mCurrentFrame = mFrames.erase(mCurrentFrame);
     while (!mFrames.empty() && !updateTexture()) {
@@ -240,4 +249,59 @@ void AddFrameState::nextFrame() {
       mCurrentFrame = mFrames.begin();
     }
   } while (!updateTexture() && !mFrames.empty());
+}
+
+AddFrameState::FramePair::FramePair(const fs::path &rgb, const fs::path &d_)
+    : rgb(rgb.string()), d(d_.string()), stem(d_.stem().string()) {
+  if (stem.empty()) {
+    throw std::invalid_argument("The depth's stem cannot be empty.");
+  }
+  if (lowercaseExtension(d_) != ".png") {
+    throw std::invalid_argument("The depth should have .png extension.");
+  }
+}
+
+bool AddFrameState::FramePair::operator==(const FramePair &other) const {
+  return stem == other.stem;
+}
+
+bool AddFrameState::FramePair::operator==(const std::string &depthStem) const {
+  return stem == depthStem;
+}
+
+bool AddFrameState::FramePair::operator!=(const std::string &depthStem) const {
+  return stem != depthStem;
+}
+
+bool AddFrameState::FramePair::operator<(const FramePair &other) const {
+  return *this < other.stem;
+}
+
+bool AddFrameState::FramePair::operator<(const std::string &depthStem) const {
+  return strnatcasecmp(stem.c_str(), depthStem.c_str()) < 0;
+}
+
+bool operator==(const std::string &depthStem,
+                const AddFrameState::FramePair &fp) {
+  return fp == depthStem;
+}
+
+bool operator<(const std::string &depthStem,
+               const AddFrameState::FramePair &fp) {
+  return strnatcasecmp(depthStem.c_str(), fp.stem.c_str()) < 0;
+}
+
+static std::string lowercaseExtension(const fs::path &p) {
+  fs::path ext = p.extension();
+  std::string ret;
+  ret.reserve(ext.native().length());
+  for (auto ch : ext.native()) {
+    // No Unicode and no surrogates, since we are ASCII only.
+    if (ch > 0x7F) {
+      return "";
+    }
+    // tolower should be fine with ASCII-only.
+    ret.push_back(static_cast<char>(tolower(static_cast<unsigned char>(ch))));
+  }
+  return ret;
 }
