@@ -45,12 +45,27 @@ PointCloud::PointCloud(const Scene &scene, const std::string &name,
   loadData(scene);
 }
 
+PointCloud::PointCloud(const Scene &scene, const std::string &name,
+                       const std::string &rgb, const std::string depth,
+                       double trunc)
+    : name(name), rgb(rgb), depth(depth), color(randomColor()), matrix(1.0f),
+      hidden(false), trunc(trunc) {
+  loadData(scene);
+}
+
 PointCloud::PointCloud(const Scene &scene, const json &j) {
   j.at("name").get_to(name);
   j.at("matrix").get_to(matrix);
   j.at("hidden").get_to(hidden);
   j.at("color").get_to(color);
   j.at("trunc").get_to(trunc);
+
+  auto maybeRgb = j.find("rgb");
+  auto maybeDepth = j.find("depth");
+  if (maybeRgb != j.end() && maybeDepth != j.end()) {
+    maybeRgb->get_to(rgb);
+    maybeDepth->get_to(depth);
+  }
 
   auto legacyRawMatrix = j.find("rawMatrix");
   if (legacyRawMatrix != j.end() && legacyRawMatrix->is_boolean() &&
@@ -77,9 +92,16 @@ Eigen::Matrix4d PointCloud::getMatrixEigen() const {
 }
 
 void PointCloud::loadData(const Scene &scene) {
-  auto [rgb, depth] = scene.openFrame(name);
+  std::pair<open3d::geometry::Image, open3d::geometry::Image> pair;
+  // Should we sanitize these data?
+  if (rgb.empty() || depth.empty()) {
+    pair = scene.openFrame(name);
+  } else {
+    pair = scene.openFrame(rgb, depth);
+  }
   mRGBD = open3d::geometry::RGBDImage::CreateFromColorAndDepth(
-      rgb, depth, 1.0 / scene.getDepthScale(), trunc, rgb.num_of_channels_ < 2);
+      pair.first, pair.second, 1.0 / scene.getDepthScale(), trunc,
+      pair.first.num_of_channels_ < 2);
   if (!mRGBD) {
     throw std::runtime_error("Failed to create the RGBD image");
   }
@@ -144,11 +166,16 @@ void PointCloud::makeMasked(const Scene &scene) {
 }
 
 json PointCloud::toJson() const {
-  return {{"name", name},
-          {"matrix", matrix},
-          {"hidden", hidden},
-          {"color", color},
-          {"trunc", trunc}};
+  json j = {{"name", name},
+            {"matrix", matrix},
+            {"hidden", hidden},
+            {"color", color},
+            {"trunc", trunc}};
+  if (!rgb.empty() && !depth.empty()) {
+    j["rgb"] = rgb;
+    j["depth"] = depth;
+  }
+  return j;
 }
 
 const open3d::geometry::PointCloud &PointCloud::getPointCloud() const {

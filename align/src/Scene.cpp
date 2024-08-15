@@ -81,11 +81,18 @@ open3d::geometry::Image Scene::openImage(const std::string &path) const {
 
 std::pair<open3d::geometry::Image, open3d::geometry::Image>
 Scene::openFrame(const std::filesystem::path &basename) const {
-  std::string rgbPath =
-      (mDataDirectory / "rgb" / fs::path(basename).concat(".jpg")).string();
-  std::string depthPath =
-      (mDataDirectory / "depth" / fs::path(basename).concat(".png")).string();
-  auto pair = std::make_pair(openImage(rgbPath), openImage(depthPath));
+  std::string rgb = ("rgb" / fs::path(basename).concat(".jpg")).string();
+  std::string depth = ("depth" / fs::path(basename).concat(".png")).string();
+  return openFrame(rgb, depth);
+}
+
+std::pair<open3d::geometry::Image, open3d::geometry::Image>
+Scene::openFrame(std::string rgb, std::string depth) const {
+  std::string prefix =
+      mDataDirectory.string() + std::filesystem::path::preferred_separator;
+  rgb = prefix + rgb;
+  depth = prefix + depth;
+  auto pair = std::make_pair(openImage(rgb), openImage(depth));
   // We do not force the number of channels for now.
   if (pair.first.bytes_per_channel_ != 1) {
     throw std::runtime_error("Unsupported format of the RGB image.");

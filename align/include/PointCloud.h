@@ -20,6 +20,8 @@ class Scene;
 class PointCloud {
 public:
   PointCloud(const Scene &scene, const std::string &name, double trunc);
+  PointCloud(const Scene &scene, const std::string &name,
+             const std::string &rgb, const std::string depth, double trunc);
   PointCloud(const Scene &scene, const nlohmann::json &j);
 
   Eigen::Matrix4d getMatrixEigen() const;
@@ -35,6 +37,8 @@ public:
   getMaskedPointCloud(bool allowFallback = true) const;
 
   std::string name;
+  std::string rgb;
+  std::string depth;
   glm::vec3 color;
   glm::mat4 matrix;
   bool hidden;

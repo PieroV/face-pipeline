@@ -33,6 +33,8 @@ public:
 
   std::pair<open3d::geometry::Image, open3d::geometry::Image>
   openFrame(const std::filesystem::path &basename) const;
+  std::pair<open3d::geometry::Image, open3d::geometry::Image>
+  openFrame(std::string rgb, std::string depth) const;
 
   std::pair<std::vector<Eigen::Vector3d>,
             std::vector<Eigen::Vector2<unsigned int>>>
