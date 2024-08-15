@@ -6,6 +6,7 @@
 
 #include "Bone.h"
 
+#include <algorithm>
 #include <deque>
 #include <stdexcept>
 
